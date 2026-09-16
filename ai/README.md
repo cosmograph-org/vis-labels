@@ -55,6 +55,13 @@ renderer.setLabels([
 renderer.draw()
 ```
 
+After `draw()`, ask which labels survived the overlap pass, for example to decorate only the labels that are on screen:
+
+```ts
+renderer.isLabelVisible('a')
+renderer.getVisibleLabelIds()
+```
+
 Use `VisLabel` directly only when managing a small number of individual labels yourself:
 
 ```ts
@@ -119,6 +126,7 @@ Never pass user-provided or unsanitized HTML to `dangerousHtml`.
 - Reuse one `LabelRenderer` per labels container.
 - Keep label `id` stable across frames to avoid destroying and recreating DOM nodes.
 - Batch updates with `setLabels(labels)` and call `draw()` once per frame.
+- When only positions change between frames, move labels with `setLabelPosition(id, x, y, rotation)` instead of passing every label to `setLabels` again.
 - Avoid changing text, font size, padding, class names, or large inline styles every frame; those can invalidate measurements.
 - Prefer renderer-level `fontSize` and `padding` when many labels share the same values.
 - Pass `draw(false)` when overlap resolution is not needed for a frame.
