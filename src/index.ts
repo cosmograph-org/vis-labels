@@ -10,7 +10,9 @@ export class LabelRenderer {
   private _container: HTMLDivElement
   private _onClickCallback: OnClickCallback | undefined
   private _pointerEvents: LabelRendererOptions['pointerEvents'] | undefined
-  private _elementToData = new Map<HTMLDivElement, LabelOptions>()
+  private _elementToId = new Map<HTMLDivElement, string>()
+  /** The labels last passed to `setLabels`, where a click finds the options it reports. */
+  private _labels: LabelOptions[] = []
   private _labelOrder: VisLabel[] = []
   private _labelOrderIsStale = true
   private _onScreenLabels: VisLabel[] = []
@@ -51,6 +53,7 @@ export class LabelRenderer {
   }
 
   public setLabels (labels: LabelOptions[]): void {
+    this._labels = labels
     this._sweep += 1
     let named = 0
     labels.forEach(label => {
@@ -60,7 +63,7 @@ export class LabelRenderer {
         this._labelOrderIsStale = true
         const cssLabel = new VisLabel(this._container, label.text, this._dontInjectStyles, this._dangerousHtml)
         this._visLabels.set(label.id, cssLabel)
-        this._elementToData.set(cssLabel.element, label)
+        this._elementToId.set(cssLabel.element, label.id)
       }
       const labelToUpdate = this._visLabels.get(label.id)
       if (labelToUpdate) {
@@ -109,7 +112,7 @@ export class LabelRenderer {
     if (this._visLabels.size === named) return
     this._visLabels.forEach((cssLabel, id) => {
       if (cssLabel.seenAt === this._sweep) return
-      this._elementToData.delete(cssLabel.element)
+      this._elementToId.delete(cssLabel.element)
       cssLabel.destroy()
       this._visLabels.delete(id)
       this._labelOrderIsStale = true
@@ -165,9 +168,14 @@ export class LabelRenderer {
   private _onClick (e: MouseEvent): void {
     let node = e.target as Element | null
     while (node && node !== this._container) {
-      const label = this._elementToData.get(node as HTMLDivElement)
-      if (label) {
-        this._onClickCallback?.(e, label)
+      const id = this._elementToId.get(node as HTMLDivElement)
+      if (id !== undefined) {
+        // Found at click time rather than recorded on every `setLabels`, which costs a map write per label per frame.
+        for (let i = this._labels.length - 1; i >= 0; i -= 1) {
+          if (this._labels[i].id !== id) continue
+          this._onClickCallback?.(e, this._labels[i])
+          return
+        }
         return
       }
       node = node.parentElement
