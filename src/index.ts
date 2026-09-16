@@ -54,7 +54,7 @@ export class LabelRenderer {
     this._sweep += 1
     let named = 0
     labels.forEach(label => {
-      const { x, y, fontSize, color, text, weight, opacity, shouldBeShown, style, className, padding, rotation } = label
+      const { x, y, fontSize, color, text, weight, opacity, shouldBeShown, style, className, padding, rotation, maxOuterWidth } = label
       const exists = this._visLabels.get(label.id)
       if (!exists) {
         this._labelOrderIsStale = true
@@ -98,6 +98,8 @@ export class LabelRenderer {
         if (className !== undefined) labelToUpdate.setClassName(className)
         if (rotation !== undefined) labelToUpdate.setRotation(rotation)
         else labelToUpdate.resetRotation()
+        if (maxOuterWidth !== undefined) labelToUpdate.setMaxOuterWidth(maxOuterWidth)
+        else labelToUpdate.resetMaxOuterWidth()
       }
     })
 

@@ -2,7 +2,7 @@ import { doQuadsIntersect } from './helper.js'
 import { DEFAULT_FONT_SIZE, DEFAULT_PADDING, FONT_WIDTH_HEIGHT_RATIO } from './variables.js'
 import { LabelPadding, LabelRendererOptions } from './types.js'
 
-import { labelStyles, injectStyles, labelClassName, hiddenLabelClassName } from './styles.js'
+import { labelStyles, injectStyles, labelClassName, hiddenLabelClassName, cappedLabelClassName } from './styles.js'
 
 let globalVisLabelStyles: HTMLStyleElement | undefined
 const cornersOfFirst = new Float64Array(8)
@@ -38,6 +38,7 @@ export class VisLabel {
    */
   private _contentIsHtml = false
   private _customPadding: LabelPadding | undefined = undefined
+  private _customMaxOuterWidth: number | undefined = undefined
 
   private _customPointerEvents: LabelRendererOptions['pointerEvents'] | undefined
   private _customStyle: string | undefined
@@ -141,6 +142,7 @@ export class VisLabel {
       if (this._customPointerEvents) this.element.style.pointerEvents = this._customPointerEvents
       if (this._customFontSize) this.element.style.fontSize = `${this._customFontSize}px`
       if (this._customPadding) this._applyPadding(this._customPadding)
+      if (this._customMaxOuterWidth !== undefined) this._applyMaxOuterWidth(this._customMaxOuterWidth)
       this._resetRealSizeCache()
     }
   }
@@ -291,6 +293,32 @@ export class VisLabel {
   }
 
   /**
+   * Caps the label's outer width in pixels, padding and border included, unlike `--vis-label-max-width`, which caps the content box.
+   * @param maxOuterWidth - The maximum outer width in pixels.
+   */
+  public setMaxOuterWidth (maxOuterWidth: number): void {
+    if (this._customMaxOuterWidth === maxOuterWidth) return
+    const wasSet = this._customMaxOuterWidth !== undefined
+    this._customMaxOuterWidth = maxOuterWidth
+    this._applyMaxOuterWidth(maxOuterWidth)
+    if (!wasSet) this._updateClasses()
+    this._needsMeasureUpdate = true
+    this._resetRealSizeCache()
+  }
+
+  /**
+   * Removes the cap set with `setMaxOuterWidth`.
+   */
+  public resetMaxOuterWidth (): void {
+    if (this._customMaxOuterWidth === undefined) return
+    this._customMaxOuterWidth = undefined
+    this.element.style.removeProperty('max-width')
+    this._updateClasses()
+    this._needsMeasureUpdate = true
+    this._resetRealSizeCache()
+  }
+
+  /**
    * Sets the boolean value of whether the element should be forced to shown or not
    * @param shouldBeShown - The boolean value to set
    */
@@ -434,14 +462,20 @@ export class VisLabel {
   }
 
   private _updateClasses (): void {
-    const isVisible = this.getVisibility()
-    if (isVisible) {
+    if (this.getVisibility()) {
       window.requestAnimationFrame(() => {
-        this.element.className = `${labelClassName} ${this._customClassName || ''}`
+        this.element.className = this._classNames(false)
       })
     } else {
-      this.element.className = `${labelClassName} ${this._customClassName || ''} ${hiddenLabelClassName}`
+      this.element.className = this._classNames(true)
     }
+  }
+
+  private _classNames (isHidden: boolean): string {
+    let names = `${labelClassName} ${this._customClassName || ''}`
+    if (isHidden) names += ` ${hiddenLabelClassName}`
+    if (this._customMaxOuterWidth !== undefined) names += ` ${cappedLabelClassName}`
+    return names
   }
 
   /** Clears the real-size cache so it is re-measured after next appendChild. */
@@ -461,6 +495,10 @@ export class VisLabel {
 
   private _applyPadding ({ top, right, bottom, left }: LabelPadding): void {
     this.element.style.padding = `${top}px ${right}px ${bottom}px ${left}px`
+  }
+
+  private _applyMaxOuterWidth (maxOuterWidth: number): void {
+    this.element.style.maxWidth = `${maxOuterWidth}px`
   }
 
   private _updateBounds (): void {
@@ -531,7 +569,7 @@ export class VisLabel {
     const lines = this._getEstimatedTextLines()
     const longestLineLength = lines.reduce((longest, line) => Math.max(longest, line.length), 0)
     const lineHeight = fontSize * 1.2
-    this._estimatedWidth = fontSize * FONT_WIDTH_HEIGHT_RATIO * longestLineLength + left + right
+    this._estimatedWidth = Math.min(fontSize * FONT_WIDTH_HEIGHT_RATIO * longestLineLength + left + right, this._customMaxOuterWidth ?? Infinity)
     this._estimatedHeight = (lines.length > 1 ? lineHeight * lines.length : fontSize) + top + bottom
 
     this._needsMeasureUpdate = false

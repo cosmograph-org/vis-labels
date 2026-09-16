@@ -62,6 +62,10 @@
   opacity: 1;
 }
 
+:where(.vis-label--capped) {
+  box-sizing: border-box;
+}
+
 :where(.vis-label--hidden) {
   /* We use "important" here because the users may pass their own label class, overriding the opacity */
   opacity: 0 !important;
