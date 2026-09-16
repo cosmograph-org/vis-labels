@@ -1,10 +1,16 @@
-import { doQuadsIntersect } from './helper.js'
-import { DEFAULT_FONT_SIZE, DEFAULT_PADDING, FONT_WIDTH_HEIGHT_RATIO } from './variables.js'
-import { LabelPadding, LabelRendererOptions } from './types.js'
+import { doQuadsIntersect, styledRunsOf, svgStyleOfRun } from './helper.js'
+import {
+  DEFAULT_FONT_SIZE, DEFAULT_PADDING, FONT_WIDTH_HEIGHT_RATIO, LINE_HEIGHT_RATIO, PATH_LABEL_STYLE, PATH_SVG_STYLE, SVG_NAMESPACE,
+} from './variables.js'
+import { LabelPadding, LabelPath, LabelRendererOptions, MeasuredRun, PathState } from './types.js'
+import { createPathLayout, estimateText, layoutPath, measureText, shapePath } from './path-text.js'
 
-import { labelStyles, injectStyles, labelClassName, hiddenLabelClassName, cappedLabelClassName } from './styles.js'
+import {
+  labelStyles, injectStyles, labelClassName, hiddenLabelClassName, cappedLabelClassName, pathClassName, ribbonClassName,
+} from './styles.js'
 
 let globalVisLabelStyles: HTMLStyleElement | undefined
+let pathId = 0
 const cornersOfFirst = new Float64Array(8)
 const cornersOfSecond = new Float64Array(8)
 
@@ -14,7 +20,7 @@ export class VisLabel {
   private _container: HTMLDivElement
   private _x = 0
   private _y = 0
-  /** Real size from offsetWidth/offsetHeight; set only after appendChild when not yet set; cleared when size options change. */
+  /** Measured size: from the DOM, or from the measured text for a label with a path. Cleared when size options change. */
   private _cachedRealWidth: number | undefined = undefined
   private _cachedRealHeight: number | undefined = undefined
   /** Heuristic size (font + padding); updated in _estimateTextSize when _needsMeasureUpdate. */
@@ -49,6 +55,7 @@ export class VisLabel {
   private _right = 0
   private _bottom = 0
   private _boundsAreStale = true
+  private _pathState: PathState | undefined = undefined
 
   /**
    * @param container - The parent element for the label.
@@ -133,18 +140,9 @@ export class VisLabel {
    * @param style - The style to be set.
    */
   public setStyle (style: string): void {
-    if (this._customStyle !== style) {
-      this._customStyle = style
-      this.element.style.cssText = this._customStyle
-
-      if (this._customColor) this.element.style.color = this._customColor
-      if (this._customOpacity) this.element.style.opacity = String(this._customOpacity)
-      if (this._customPointerEvents) this.element.style.pointerEvents = this._customPointerEvents
-      if (this._customFontSize) this.element.style.fontSize = `${this._customFontSize}px`
-      if (this._customPadding) this._applyPadding(this._customPadding)
-      if (this._customMaxOuterWidth !== undefined) this._applyMaxOuterWidth(this._customMaxOuterWidth)
-      this._resetRealSizeCache()
-    }
+    if (this._customStyle === style) return
+    this._customStyle = style
+    this._applyStyles()
   }
 
   /**
@@ -248,7 +246,7 @@ export class VisLabel {
 
   /**
    * Sets the `pointerEvents` property to 'none', 'auto', or 'all'.
-   * This `pointerEvents` value will rewrite the opacity from `setStyle` CSS style if specified.
+   * This `pointerEvents` value will rewrite the pointer events from `setStyle` CSS style if specified.
    * @param pointerEvents - The `pointerEvents` value to be set.
    */
   public setPointerEvents (pointerEvents: LabelRendererOptions['pointerEvents']): void {
@@ -272,8 +270,7 @@ export class VisLabel {
    * This value cannot be changed through `setStyle` or `setClassName`
    * methods because it is used to measure the width and height of the label.
    * @param padding - The padding object with left, top, right and bottom properties.
-   * If not specified or partially specified, it will use the default value of
-   * `{ left: 9px, top: 6px, right: 9px, bottom: 6px }` for unspecified values.
+   * If not specified, it will use the default value of `{ left: 9px, top: 6px, right: 9px, bottom: 6px }`.
    */
   public setPadding (padding: LabelPadding = DEFAULT_PADDING): void {
     if (!this._customPadding ||
@@ -282,7 +279,7 @@ export class VisLabel {
         this._customPadding.right !== padding.right ||
         this._customPadding.bottom !== padding.bottom) {
       this._customPadding = padding
-      this._applyPadding(padding)
+      if (!this._pathState) this._applyPadding(padding)
       this._needsMeasureUpdate = true
       this._resetRealSizeCache()
     }
@@ -300,7 +297,7 @@ export class VisLabel {
     if (this._customMaxOuterWidth === maxOuterWidth) return
     const wasSet = this._customMaxOuterWidth !== undefined
     this._customMaxOuterWidth = maxOuterWidth
-    this._applyMaxOuterWidth(maxOuterWidth)
+    if (!this._pathState) this._applyMaxOuterWidth(maxOuterWidth)
     if (!wasSet) this._updateClasses()
     this._needsMeasureUpdate = true
     this._resetRealSizeCache()
@@ -316,6 +313,57 @@ export class VisLabel {
     this._updateClasses()
     this._needsMeasureUpdate = true
     this._resetRealSizeCache()
+  }
+
+  /**
+   * Lays the label out along a path instead of at its position and rotation. See `LabelOptions.path`.
+   * @param path - The path in container pixels.
+   */
+  public setPath (path: LabelPath): void {
+    if (this._pathState) {
+      this._pathState.path = path
+      this._pathState.isLayoutStale = true
+      this._boundsAreStale = true
+      return
+    }
+    this._pathState = {
+      path,
+      layout: createPathLayout(),
+      source: undefined,
+      sourceIsHtml: false,
+      runs: [],
+      text: undefined,
+      isLayoutStale: true,
+      areStylesStale: true,
+      fits: false,
+      lineHeight: 0,
+      background: '',
+      borderColor: '',
+      borderWidth: 0,
+      borderRadius: 0,
+      svg: undefined,
+      baseline: undefined,
+      ribbon: undefined,
+      textPath: undefined,
+      writtenBaseline: '',
+      writtenRibbon: '',
+      writtenOffset: '',
+      writtenText: '',
+    }
+    this._preparePathText(this._pathState)
+    this._resetRealSizeCache()
+  }
+
+  /**
+   * Stops laying the label out along a path.
+   */
+  public resetPath (): void {
+    const state = this._pathState
+    if (!state) return
+    state.svg?.remove()
+    this._pathState = undefined
+    this._writeContent()
+    this._applyStyles()
   }
 
   /**
@@ -335,9 +383,8 @@ export class VisLabel {
   }
 
   /**
-   * Draws the element to the container and updates the label's coordinate.
-   * The label's coordinate updates using `transform` style. It rewrite
-   * the `transform` from `setStyle` CSS style if specified.
+   * Draws the element to the container. A label with a path is drawn as SVG text along it. Any other label is placed
+   * with a `transform` style, which rewrites the `transform` from `setStyle` CSS style if specified.
    */
   public draw (): void {
     const isVisible = this.getVisibility()
@@ -353,6 +400,11 @@ export class VisLabel {
     }
 
     if (isVisible) {
+      const state = this._pathState
+      if (state) {
+        this._drawPathText(state)
+        return
+      }
       const rotation = this._rotation
       const rotate = rotation !== 0 ? ` rotate(${rotation}deg)` : ''
       // When rotated, pivot around the label’s bottom-center so it stays anchored at (x, y).
@@ -372,10 +424,17 @@ export class VisLabel {
     this._updateBounds()
     label._updateBounds()
     if (this._left > label._right || label._left > this._right || this._top > label._bottom || label._top > this._bottom) return false
-    if (this._rotation === 0 && label._rotation === 0) return true
-    this._writeCorners(cornersOfFirst)
-    label._writeCorners(cornersOfSecond)
-    return doQuadsIntersect(cornersOfFirst, cornersOfSecond)
+    if (this._isAxisAligned() && label._isAxisAligned()) return true
+    const quads = this._quads(cornersOfFirst)
+    const otherQuads = label._quads(cornersOfSecond)
+    const quadCount = this._quadCount()
+    const otherQuadCount = label._quadCount()
+    for (let quad = 0; quad < quadCount; quad += 1) {
+      for (let otherQuad = 0; otherQuad < otherQuadCount; otherQuad += 1) {
+        if (doQuadsIntersect(quads, otherQuads, quad * 8, otherQuad * 8)) return true
+      }
+    }
+    return false
   }
 
   public setVisibility (visible = true): void {
@@ -387,6 +446,11 @@ export class VisLabel {
   }
 
   public isOnScreen (containerWidth?: number, containerHeight?: number): boolean {
+    const state = this._pathState
+    if (state) {
+      this._updatePathLayout()
+      if (!state.fits) return false
+    }
     const width = containerWidth ?? this._container.offsetWidth
     const height = containerHeight ?? this._container.offsetHeight
     return this._x > 0 && this._y > 0 && this._x < width && this._y < height
@@ -465,6 +529,7 @@ export class VisLabel {
     if (this.getVisibility()) {
       window.requestAnimationFrame(() => {
         this.element.className = this._classNames(false)
+        if (this._pathState) this._pathState.areStylesStale = true
       })
     } else {
       this.element.className = this._classNames(true)
@@ -483,11 +548,21 @@ export class VisLabel {
     this._cachedRealWidth = undefined
     this._cachedRealHeight = undefined
     this._boundsAreStale = true
+    if (this._pathState) {
+      this._pathState.isLayoutStale = true
+      this._pathState.areStylesStale = true
+    }
   }
 
-  /** Fills real-size cache from the DOM when the element is mounted. */
+  /** Fills the size cache when the element is mounted: from the DOM, or from the measured text for a label with a path. */
   private _updateRealSizeCache (): void {
     if (!this._isMounted) return
+    const state = this._pathState
+    if (state) {
+      this._preparePathText(state)
+      this._readPathStyles(state)
+      return
+    }
     this._cachedRealWidth = this.element.offsetWidth
     this._cachedRealHeight = this.element.offsetHeight
     this._boundsAreStale = true
@@ -503,7 +578,14 @@ export class VisLabel {
 
   private _updateBounds (): void {
     if (!this._boundsAreStale) return
-    if (this._rotation === 0) {
+    const state = this._pathState
+    if (state) {
+      this._updatePathLayout()
+      this._left = state.layout.left
+      this._top = state.layout.top
+      this._right = state.layout.right
+      this._bottom = state.layout.bottom
+    } else if (this._rotation === 0) {
       const halfWidth = this.width / 2
       this._left = this._x - halfWidth
       this._right = this._x + halfWidth
@@ -542,12 +624,27 @@ export class VisLabel {
     return this._customPadding ?? DEFAULT_PADDING
   }
 
+  private _isAxisAligned (): boolean {
+    return !this._pathState && this._rotation === 0
+  }
+
+  private _quads (scratch: Float64Array): Float64Array {
+    const state = this._pathState
+    if (state) return state.layout.quads
+    this._writeCorners(scratch)
+    return scratch
+  }
+
+  private _quadCount (): number {
+    return this._pathState?.layout.quadCount ?? 1
+  }
+
   private _setContent (content: string | number, isHtml: boolean): void {
     if (this._text === content && this._contentIsHtml === isHtml) return
     this._text = content
     this._contentIsHtml = isHtml
     this._hasText = typeof content === 'number' || /\S/.test(content)
-    this._writeContent()
+    if (!this._pathState) this._writeContent()
     this._needsMeasureUpdate = true
     this._resetRealSizeCache()
   }
@@ -556,6 +653,187 @@ export class VisLabel {
     const text = typeof this._text === 'number' ? String(this._text) : this._text
     if (this._contentIsHtml) this.element.innerHTML = text
     else this.element.textContent = text
+  }
+
+  private _applyStyles (): void {
+    this._writeOwnStyles()
+    if (this._pathState) this._applyPathModeStyles()
+    this._resetRealSizeCache()
+  }
+
+  /** Writes the label's inline styles as its options give them, before a path covers up its box. */
+  private _writeOwnStyles (): void {
+    const { style } = this.element
+    style.cssText = this._customStyle ?? ''
+    if (this._customColor) style.color = this._customColor
+    if (this._customOpacity) style.opacity = String(this._customOpacity)
+    if (this._customPointerEvents) style.pointerEvents = this._customPointerEvents
+    if (this._customFontSize) style.fontSize = `${this._customFontSize}px`
+    if (this._customPadding) this._applyPadding(this._customPadding)
+    if (this._customMaxOuterWidth !== undefined) this._applyMaxOuterWidth(this._customMaxOuterWidth)
+  }
+
+  private _applyPathModeStyles (): void {
+    const { style } = this.element
+    Object.assign(style, PATH_LABEL_STYLE)
+    style.removeProperty('transform')
+    style.removeProperty('transform-origin')
+    style.removeProperty('max-width')
+    if (this._pathState?.svg) this._pathState.svg.style.pointerEvents = this._customPointerEvents ?? ''
+  }
+
+  private _preparePathText (state: PathState): void {
+    const source = String(this._text)
+    if (state.source === source && state.sourceIsHtml === this._contentIsHtml) return
+    state.source = source
+    state.sourceIsHtml = this._contentIsHtml
+    state.runs = this._contentIsHtml ? styledRunsOf(source) : [{ text: source, style: '' }]
+    state.text = undefined
+    state.areStylesStale = true
+    state.isLayoutStale = true
+    this._applyPathModeStyles()
+    this._boundsAreStale = true
+  }
+
+  private _readPathStyles (state: PathState): void {
+    if (!state.areStylesStale) return
+    state.areStylesStale = false
+
+    // Read from the label's own box, so that a class or a `style` option styles both kinds of label.
+    this._writeOwnStyles()
+    const computed = getComputedStyle(this.element)
+    state.background = computed.backgroundColor
+    state.borderColor = computed.borderTopColor
+    state.borderWidth = parseFloat(computed.borderTopWidth) || 0
+    state.borderRadius = parseFloat(computed.borderTopLeftRadius) || 0
+    const measured = measureText(state.runs, {
+      style: computed.fontStyle,
+      weight: computed.fontWeight,
+      size: computed.fontSize,
+      family: computed.fontFamily,
+    })
+    if (measured) state.text = measured
+    const lineHeight = parseFloat(computed.lineHeight)
+    state.lineHeight = Number.isFinite(lineHeight) ? lineHeight : measured?.lineHeight ?? parseFloat(computed.fontSize) * LINE_HEIGHT_RATIO
+    this._applyPathModeStyles()
+    state.isLayoutStale = true
+    state.writtenRibbon = ''
+
+    const { left, top, right, bottom } = this._padding()
+    this._cachedRealWidth = (state.text?.width ?? 0) + left + right
+    this._cachedRealHeight = state.lineHeight + top + bottom
+    this._boundsAreStale = true
+  }
+
+  private _updatePathLayout (): void {
+    const state = this._pathState
+    if (!state) return
+    this._preparePathText(state)
+    if (!state.isLayoutStale) return
+    state.isLayoutStale = false
+    this._boundsAreStale = true
+
+    const fontSize = this._customFontSize ?? DEFAULT_FONT_SIZE
+    if (!state.text) state.text = estimateText(state.runs, fontSize, FONT_WIDTH_HEIGHT_RATIO)
+    if (!state.lineHeight) state.lineHeight = state.text.lineHeight
+    const { left, top, right, bottom } = this._padding()
+    state.fits = layoutPath(state.path, state.text, {
+      maxWidth: this._customMaxOuterWidth ?? Infinity,
+      offset: state.path.offset ?? 0,
+      lineHeight: state.lineHeight,
+      paddingLeft: left,
+      paddingRight: right,
+      paddingTop: top,
+      paddingBottom: bottom,
+      borderRadius: state.borderRadius,
+    }, state.layout)
+    this._x = state.layout.centerX
+    this._y = state.layout.centerY
+  }
+
+  private _buildPathElements (state: PathState): void {
+    const svg = document.createElementNS(SVG_NAMESPACE, 'svg')
+    svg.style.cssText = PATH_SVG_STYLE
+
+    const defs = document.createElementNS(SVG_NAMESPACE, 'defs')
+    state.baseline = document.createElementNS(SVG_NAMESPACE, 'path')
+    pathId += 1
+    state.baseline.id = `vis-label-path-${pathId}`
+    defs.appendChild(state.baseline)
+
+    state.ribbon = document.createElementNS(SVG_NAMESPACE, 'path')
+    state.ribbon.setAttribute('class', ribbonClassName)
+
+    const text = document.createElementNS(SVG_NAMESPACE, 'text')
+    text.setAttribute('class', pathClassName)
+    text.setAttribute('text-anchor', 'middle')
+    text.setAttribute('fill', 'currentColor')
+    state.textPath = document.createElementNS(SVG_NAMESPACE, 'textPath')
+    state.textPath.setAttribute('href', `#${state.baseline.id}`)
+    text.appendChild(state.textPath)
+
+    svg.append(defs, state.ribbon, text)
+    svg.style.pointerEvents = this._customPointerEvents ?? ''
+    state.svg = svg
+    this.element.replaceChildren(svg)
+    state.writtenBaseline = ''
+    state.writtenRibbon = ''
+    state.writtenOffset = ''
+    state.writtenText = ''
+  }
+
+  private _drawRibbon (state: PathState): void {
+    const ribbon = state.ribbon
+    if (!ribbon) return
+    const hasFill = state.background !== '' && state.background !== 'rgba(0, 0, 0, 0)' && state.background !== 'transparent'
+    const shape = state.fits && (hasFill || state.borderWidth > 0) ? state.layout.ribbon : ''
+    if (state.writtenRibbon === shape) return
+    state.writtenRibbon = shape
+    ribbon.setAttribute('d', shape)
+    ribbon.setAttribute('fill', hasFill ? state.background : 'none')
+    ribbon.setAttribute('stroke', state.borderWidth > 0 ? state.borderColor : 'none')
+    ribbon.setAttribute('stroke-width', String(state.borderWidth))
+  }
+
+  private _drawPathRuns (state: PathState, runs: MeasuredRun[]): void {
+    const textPath = state.textPath
+    if (!textPath) return
+    const key = runs.map(run => `${run.style} ${run.text}`).join('')
+    if (state.writtenText === key) return
+    state.writtenText = key
+
+    if (runs.length === 1 && !runs[0].style) {
+      textPath.textContent = runs[0].text
+      return
+    }
+    const fragment = document.createDocumentFragment()
+    for (const run of runs) {
+      const tspan = document.createElementNS(SVG_NAMESPACE, 'tspan')
+      if (run.style) tspan.setAttribute('style', svgStyleOfRun(run.style))
+      tspan.textContent = run.text
+      fragment.appendChild(tspan)
+    }
+    textPath.replaceChildren(fragment)
+  }
+
+  private _drawPathText (state: PathState): void {
+    if (state.areStylesStale && this._isMounted) this._readPathStyles(state)
+    this._updatePathLayout()
+    if (!state.svg || state.svg.parentElement !== this.element) this._buildPathElements(state)
+
+    const { layout } = state
+    if (state.fits) shapePath(state.path, layout)
+    if (state.writtenBaseline !== layout.baseline) {
+      state.writtenBaseline = layout.baseline
+      state.baseline?.setAttribute('d', layout.baseline)
+    }
+    const offset = layout.textCenter.toFixed(1)
+    if (state.writtenOffset !== offset) {
+      state.writtenOffset = offset
+      state.textPath?.setAttribute('startOffset', offset)
+    }
+    this._drawPathRuns(state, layout.runs)
+    this._drawRibbon(state)
   }
 
   /**
@@ -568,7 +846,7 @@ export class VisLabel {
     const fontSize = this._customFontSize ?? DEFAULT_FONT_SIZE
     const lines = this._getEstimatedTextLines()
     const longestLineLength = lines.reduce((longest, line) => Math.max(longest, line.length), 0)
-    const lineHeight = fontSize * 1.2
+    const lineHeight = fontSize * LINE_HEIGHT_RATIO
     this._estimatedWidth = Math.min(fontSize * FONT_WIDTH_HEIGHT_RATIO * longestLineLength + left + right, this._customMaxOuterWidth ?? Infinity)
     this._estimatedHeight = (lines.length > 1 ? lineHeight * lines.length : fontSize) + top + bottom
 

@@ -7,6 +7,7 @@ import { htmlMultilineLabelsIntersect } from './quick-start/html-multiline-label
 import { angleRotation } from './quick-start/label-rotation'
 import { cssVariables } from './quick-start/css-variables'
 import { maxWidthLabels } from './quick-start/max-width'
+import { pathLabels } from './quick-start/path-labels'
 // @ts-expect-error - Vite raw import
 import singleLabelSource from './quick-start/single-label.ts?raw'
 // @ts-expect-error - Vite raw import
@@ -21,6 +22,8 @@ import labelRotationSource from './quick-start/label-rotation.ts?raw'
 import cssVariablesSource from './quick-start/css-variables.ts?raw'
 // @ts-expect-error - Vite raw import
 import maxWidthSource from './quick-start/max-width.ts?raw'
+// @ts-expect-error - Vite raw import
+import pathLabelsSource from './quick-start/path-labels.ts?raw'
 
 const meta = {
   title: 'Quick Start',
@@ -179,5 +182,30 @@ export const MaxWidth: Story = {
     const div = canvasElement.querySelector<HTMLDivElement>(`[${LABEL_RENDERER_DIV_ATTR}]`)
     if (!div) return
     cleanupMaxWidth = maxWidthLabels(div)
+  },
+}
+
+let cleanupPathLabels: (() => void) | undefined
+
+export const PathLabels: Story = {
+  name: 'Text along a path',
+  render: () => renderContainer({ width: '570px', height: '440px' }),
+  parameters: {
+    docs: {
+      source: {
+        type: 'code',
+        code: pathLabelsSource,
+        language: 'typescript',
+      },
+    },
+  },
+  async beforeEach () {
+    cleanupPathLabels = undefined
+    return () => cleanupPathLabels?.()
+  },
+  play: ({ canvasElement }) => {
+    const div = canvasElement.querySelector<HTMLDivElement>(`[${LABEL_RENDERER_DIV_ATTR}]`)
+    if (!div) return
+    cleanupPathLabels = pathLabels(div)
   },
 }

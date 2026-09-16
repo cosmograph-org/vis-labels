@@ -3,12 +3,15 @@ import { renderContainer, renderFullViewportContainer, LABEL_RENDERER_DIV_ATTR }
 import { emptyLabelVisibility } from './edge-cases/empty-label-visibility'
 import { swarmOfLabels, smallSwarmOfLabels } from './edge-cases/intersect-labels-performance'
 import { rotatedLabelsOverlap } from './edge-cases/rotated-labels-overlap'
+import { pathLabelsSwarm } from './edge-cases/path-labels-swarm'
 // @ts-expect-error - Vite raw import
 import emptyLabelVisibilitySource from './edge-cases/empty-label-visibility.ts?raw'
 // @ts-expect-error - Vite raw import
 import intersectLabelsPerformanceSource from './edge-cases/intersect-labels-performance.ts?raw'
 // @ts-expect-error - Vite raw import
 import rotatedLabelsOverlapSource from './edge-cases/rotated-labels-overlap.ts?raw'
+// @ts-expect-error - Vite raw import
+import pathLabelsSwarmSource from './edge-cases/path-labels-swarm.ts?raw'
 
 const meta = {
   id: 'test',
@@ -106,5 +109,30 @@ export const IntersectLabelsPerformance: Story = {
     const div = canvasElement.querySelector<HTMLDivElement>(`[${LABEL_RENDERER_DIV_ATTR}]`)
     if (!div) return
     cleanup = swarmOfLabels(div)
+  },
+}
+
+let cleanupPathSwarm: (() => void) | undefined
+
+export const PathLabelsSwarm: Story = {
+  name: '600 labels along paths',
+  render: () => renderFullViewportContainer(),
+  parameters: {
+    docs: {
+      source: {
+        type: 'code',
+        code: pathLabelsSwarmSource,
+        language: 'typescript',
+      },
+    },
+  },
+  async beforeEach () {
+    cleanupPathSwarm = undefined
+    return () => cleanupPathSwarm?.()
+  },
+  play: ({ canvasElement }) => {
+    const div = canvasElement.querySelector<HTMLDivElement>(`[${LABEL_RENDERER_DIV_ATTR}]`)
+    if (!div) return
+    cleanupPathSwarm = pathLabelsSwarm(div)
   },
 }
