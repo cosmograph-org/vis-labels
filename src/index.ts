@@ -1,5 +1,5 @@
 import { VisLabel } from './vis-label.js'
-import { LabelOptions, OnClickCallback, LabelRendererOptions, LabelPadding } from './types.js'
+import { LabelOptions, OnClickCallback, LabelRendererOptions, LabelPadding, LabelPath, LabelPoint } from './types.js'
 
 import { labelContainerStyles, injectStyles, labelsContainerClassName, hiddenLabelsContainerClassName } from './styles.js'
 
@@ -54,7 +54,7 @@ export class LabelRenderer {
     this._sweep += 1
     let named = 0
     labels.forEach(label => {
-      const { x, y, fontSize, color, text, weight, opacity, shouldBeShown, style, className, padding, rotation, maxOuterWidth } = label
+      const { x, y, fontSize, color, text, weight, opacity, shouldBeShown, style, className, padding, rotation, maxOuterWidth, path } = label
       const exists = this._visLabels.get(label.id)
       if (!exists) {
         this._labelOrderIsStale = true
@@ -100,6 +100,8 @@ export class LabelRenderer {
         else labelToUpdate.resetRotation()
         if (maxOuterWidth !== undefined) labelToUpdate.setMaxOuterWidth(maxOuterWidth)
         else labelToUpdate.resetMaxOuterWidth()
+        if (path !== undefined) labelToUpdate.setPath(path)
+        else labelToUpdate.resetPath()
       }
     })
 
@@ -161,9 +163,14 @@ export class LabelRenderer {
   }
 
   private _onClick (e: MouseEvent): void {
-    const label = this._elementToData.get(e.target as HTMLDivElement)
-    if (label) {
-      this._onClickCallback?.(e, label)
+    let node = e.target as Element | null
+    while (node && node !== this._container) {
+      const label = this._elementToData.get(node as HTMLDivElement)
+      if (label) {
+        this._onClickCallback?.(e, label)
+        return
+      }
+      node = node.parentElement
     }
   }
 
@@ -249,4 +256,4 @@ export class LabelRenderer {
 }
 
 export { VisLabel }
-export type { LabelOptions, LabelPadding, LabelRendererOptions, OnClickCallback }
+export type { LabelOptions, LabelPadding, LabelPath, LabelPoint, LabelRendererOptions, OnClickCallback }

@@ -3,6 +3,8 @@ export const hiddenLabelsContainerClassName = 'vis-label--labels-container-hidde
 export const labelClassName = 'vis-label--label'
 export const hiddenLabelClassName = 'vis-label--hidden'
 export const cappedLabelClassName = 'vis-label--capped'
+export const pathClassName = 'vis-label--path'
+export const ribbonClassName = 'vis-label--ribbon'
 
 export const labelContainerStyles = `
   :where(:root) {

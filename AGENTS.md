@@ -105,6 +105,9 @@ import { VisLabels } from '@cosmograph/vis-labels/react'
 - Use `shouldBeShown` sparingly to force important labels visible.
 - Use `rotation` in degrees when label orientation should follow an edge, path, or map feature. Rotated labels are tested for overlap with their rotated box, and changing `rotation` every frame does not re-measure the label.
 - Use `maxOuterWidth` to cap a label's whole drawn width in pixels, padding and border included, for example to the length of a link; the `--vis-label-max-width` CSS variable caps the content box instead. Combine it with CSS such as `white-space: nowrap; overflow: hidden; text-overflow: ellipsis` to cut text, or leave text free to wrap.
+- Use `path` to lay text along an edge instead of placing it at `x` and `y`: give its `start`, `end` and, for a curve, its `control` point and `weight`; `inset` keeps the text clear of the nodes at either end, and `offset` holds the label off the line. The text reads left to right on the outer side of the bend and is cut with an ellipsis when it doesn't fit.
+- A label on a path, straight or curved, is SVG text on a `textPath` over a shape that carries the label's `background-color`, `border` and `border-radius`; the rest of what a CSS box can have, such as `box-shadow`, does not carry over.
+- On a path, `padding.bottom` is the gap on the link side and `padding.top` the gap on the far side. The text is drawn in an element of the `vis-label--path` class, over one of the `vis-label--ribbon` class.
 - Use `className` or `style` for visual styling, but prefer `fontSize` and `padding` options when those values affect label measurement.
 
 ## Performance Tips
