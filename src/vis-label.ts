@@ -1,17 +1,20 @@
-import { doRectsIntersect } from './helper.js'
-import { LEFT_RIGHT_PADDING, TOP_BOTTOM_PADDING, DEFAULT_FONT_SIZE } from './variables.js'
+import { doQuadsIntersect } from './helper.js'
+import { DEFAULT_FONT_SIZE, DEFAULT_PADDING, FONT_WIDTH_HEIGHT_RATIO } from './variables.js'
 import { LabelPadding, LabelRendererOptions } from './types.js'
 
 import { labelStyles, injectStyles, labelClassName, hiddenLabelClassName } from './styles.js'
 
 let globalVisLabelStyles: HTMLStyleElement | undefined
+const cornersOfFirst = new Float64Array(8)
+const cornersOfSecond = new Float64Array(8)
+
 export class VisLabel {
   public element: HTMLDivElement = document.createElement('div')
-  public readonly fontWidthHeightRatio = 0.6
+  public seenAt = 0
   private _container: HTMLDivElement
   private _x = 0
   private _y = 0
-  /** Real size from getBoundingClientRect; set only after appendChild when not yet set; cleared when size options change. */
+  /** Real size from offsetWidth/offsetHeight; set only after appendChild when not yet set; cleared when size options change. */
   private _cachedRealWidth: number | undefined = undefined
   private _cachedRealHeight: number | undefined = undefined
   /** Heuristic size (font + padding); updated in _estimateTextSize when _needsMeasureUpdate. */
@@ -19,6 +22,7 @@ export class VisLabel {
   private _estimatedHeight = 0
   private _visible = false
   private _prevVisible = false
+  private _isMounted = false
   private _weight = 0
   private _needsMeasureUpdate = true
 
@@ -27,6 +31,7 @@ export class VisLabel {
   private _customOpacity: number | undefined = undefined
   private _shouldBeShown = false
   private _text: string | number = ''
+  private _hasText = false
   /**
    * Tracks whether content was set via `dangerouslySetHtml` (`true`) or `setText` (`false`).
    * Needed so that switching mode with the same string (e.g. `setText` then `dangerouslySetHtml`) still updates the DOM.
@@ -38,6 +43,11 @@ export class VisLabel {
   private _customStyle: string | undefined
   private _customClassName: string | undefined
   private _rotation = 0
+  private _left = 0
+  private _top = 0
+  private _right = 0
+  private _bottom = 0
+  private _boundsAreStale = true
 
   /**
    * @param container - The parent element for the label.
@@ -61,21 +71,27 @@ export class VisLabel {
   }
 
   /**
-   * Width used for layout/overlap: real (getBoundingClientRect) when available, otherwise estimated.
+   * Width used for layout/overlap: measured from the DOM when available, otherwise estimated.
    */
   public get width (): number {
+    if (this._cachedRealWidth === undefined) this._updateRealSizeCache()
     if (this._cachedRealWidth !== undefined) return this._cachedRealWidth
     this._estimateTextSize()
     return this._estimatedWidth
   }
 
   /**
-   * Height used for layout/overlap: real (getBoundingClientRect) when available, otherwise estimated.
+   * Height used for layout/overlap: measured from the DOM when available, otherwise estimated.
    */
   public get height (): number {
+    if (this._cachedRealHeight === undefined) this._updateRealSizeCache()
     if (this._cachedRealHeight !== undefined) return this._cachedRealHeight
     this._estimateTextSize()
     return this._estimatedHeight
+  }
+
+  public get fontWidthHeightRatio (): number {
+    return FONT_WIDTH_HEIGHT_RATIO
   }
 
   /**
@@ -83,13 +99,7 @@ export class VisLabel {
    * @param text - The text to set.
    */
   public setText (text: string | number): void {
-    if (this._text !== text || this._contentIsHtml) {
-      this._text = text
-      this._contentIsHtml = false
-      this.element.textContent = typeof text === 'number' ? String(text) : text
-      this._needsMeasureUpdate = true
-      this._resetRealSizeCache()
-    }
+    this._setContent(text, false)
   }
 
   /**
@@ -98,13 +108,7 @@ export class VisLabel {
    * @param html - The HTML to set (string or number; numbers are converted to string).
    */
   public dangerouslySetHtml (html: string | number): void {
-    if (this._text !== html || !this._contentIsHtml) {
-      this._text = html
-      this._contentIsHtml = true
-      this.element.innerHTML = typeof html === 'number' ? String(html) : html
-      this._needsMeasureUpdate = true
-      this._resetRealSizeCache()
-    }
+    this._setContent(html, true)
   }
 
   /**
@@ -113,8 +117,10 @@ export class VisLabel {
    * @param y - The y coordinate of the label
    */
   public setPosition (x: number, y: number): void {
+    if (this._x === x && this._y === y) return
     this._x = x
     this._y = y
+    this._boundsAreStale = true
   }
 
   /**
@@ -134,10 +140,7 @@ export class VisLabel {
       if (this._customOpacity) this.element.style.opacity = String(this._customOpacity)
       if (this._customPointerEvents) this.element.style.pointerEvents = this._customPointerEvents
       if (this._customFontSize) this.element.style.fontSize = `${this._customFontSize}px`
-      if (this._customPadding) {
-        const { top, right, bottom, left } = this._customPadding
-        this.element.style.padding = `${top}px ${right}px ${bottom}px ${left}px`
-      }
+      if (this._customPadding) this._applyPadding(this._customPadding)
       this._resetRealSizeCache()
     }
   }
@@ -149,8 +152,7 @@ export class VisLabel {
   public setRotation (rotation: number): void {
     if (this._rotation !== rotation) {
       this._rotation = rotation
-      this._needsMeasureUpdate = true
-      this._resetRealSizeCache()
+      this._boundsAreStale = true
     }
   }
 
@@ -158,11 +160,7 @@ export class VisLabel {
    * Resets the label rotation to 0 (horizontal).
    */
   public resetRotation (): void {
-    if (this._rotation !== 0) {
-      this._rotation = 0
-      this._needsMeasureUpdate = true
-      this._resetRealSizeCache()
-    }
+    this.setRotation(0)
   }
 
   /**
@@ -220,6 +218,7 @@ export class VisLabel {
    * Resets the color of the element.
    */
   public resetColor (): void {
+    if (this._customColor === undefined) return
     this.element.style.removeProperty('color')
     this._customColor = undefined
   }
@@ -240,6 +239,7 @@ export class VisLabel {
    * Resets the opacity of the element.
    */
   public resetOpacity (): void {
+    if (this._customOpacity === undefined) return
     this.element.style.removeProperty('opacity')
     this._customOpacity = undefined
   }
@@ -260,6 +260,7 @@ export class VisLabel {
    * Resets the pointer-events of the element.
    */
   public resetPointerEvents (): void {
+    if (this._customPointerEvents === undefined) return
     this.element.style.removeProperty('pointer-events')
     this._customPointerEvents = undefined
   }
@@ -272,42 +273,21 @@ export class VisLabel {
    * If not specified or partially specified, it will use the default value of
    * `{ left: 9px, top: 6px, right: 9px, bottom: 6px }` for unspecified values.
    */
-  public setPadding (padding = {
-    left: LEFT_RIGHT_PADDING,
-    top: TOP_BOTTOM_PADDING,
-    right: LEFT_RIGHT_PADDING,
-    bottom: TOP_BOTTOM_PADDING,
-  }): void {
+  public setPadding (padding: LabelPadding = DEFAULT_PADDING): void {
     if (!this._customPadding ||
         this._customPadding.left !== padding.left ||
         this._customPadding.top !== padding.top ||
         this._customPadding.right !== padding.right ||
         this._customPadding.bottom !== padding.bottom) {
       this._customPadding = padding
-      this.element.style.padding = `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`
+      this._applyPadding(padding)
       this._needsMeasureUpdate = true
       this._resetRealSizeCache()
     }
   }
 
   public resetPadding (): void {
-    if (this._customPadding !== undefined &&
-        this._customPadding.left === LEFT_RIGHT_PADDING &&
-        this._customPadding.top === TOP_BOTTOM_PADDING &&
-        this._customPadding.right === LEFT_RIGHT_PADDING &&
-        this._customPadding.bottom === TOP_BOTTOM_PADDING) {
-      return
-    }
-    const padding = {
-      left: LEFT_RIGHT_PADDING,
-      top: TOP_BOTTOM_PADDING,
-      right: LEFT_RIGHT_PADDING,
-      bottom: TOP_BOTTOM_PADDING,
-    }
-    this.element.style.padding = `${padding.top}px ${padding.right}px ${padding.bottom}px ${padding.left}px`
-    this._customPadding = padding
-    this._needsMeasureUpdate = true
-    this._resetRealSizeCache()
+    this.setPadding()
   }
 
   /**
@@ -339,14 +319,16 @@ export class VisLabel {
       } else {
         this._container.removeChild(this.element)
       }
+      this._isMounted = isVisible
       this._updateClasses()
       this._prevVisible = isVisible
     }
 
     if (isVisible) {
-      const rotate = this._rotation !== 0 ? ` rotate(${this._rotation}deg)` : ''
+      const rotation = this._rotation
+      const rotate = rotation !== 0 ? ` rotate(${rotation}deg)` : ''
       // When rotated, pivot around the label’s bottom-center so it stays anchored at (x, y).
-      if (this._rotation !== 0) {
+      if (rotation !== 0) {
         this.element.style.transformOrigin = '50% 100%'
       } else {
         this.element.style.removeProperty('transform-origin')
@@ -355,26 +337,17 @@ export class VisLabel {
         translate(-50%, -100%)
         translate3d(${this._x}px, ${this._y}px, 0)${rotate}
       `
-      // Re-measure after transforms so cache reflects current rotation/state (e.g. after setText/setRotation while visible).
-      if (this._cachedRealWidth === undefined || this._cachedRealHeight === undefined) {
-        this._updateRealSizeCache()
-      }
     }
   }
 
   public overlaps (label: VisLabel): boolean {
-    // Use the same box as getLeft/getRight/getTop/getBottom: centered at (_x, _y), bottom at _y
-    return doRectsIntersect({
-      x: this._x - this.width / 2,
-      y: this._y - this.height,
-      width: this.width,
-      height: this.height,
-    }, {
-      x: label._x - label.width / 2,
-      y: label._y - label.height,
-      width: label.width,
-      height: label.height,
-    })
+    this._updateBounds()
+    label._updateBounds()
+    if (this._left > label._right || label._left > this._right || this._top > label._bottom || label._top > this._bottom) return false
+    if (this._rotation === 0 && label._rotation === 0) return true
+    this._writeCorners(cornersOfFirst)
+    label._writeCorners(cornersOfSecond)
+    return doQuadsIntersect(cornersOfFirst, cornersOfSecond)
   }
 
   public setVisibility (visible = true): void {
@@ -382,7 +355,7 @@ export class VisLabel {
   }
 
   public getVisibility (): boolean {
-    return this._visible && (typeof this._text === 'number' || this._text.trim().length > 0)
+    return this._visible && this._hasText
   }
 
   public isOnScreen (containerWidth?: number, containerHeight?: number): boolean {
@@ -408,7 +381,8 @@ export class VisLabel {
    * @returns The x coordinate of the left edge.
    */
   public getLeft (): number {
-    return this._x - this.width / 2
+    this._updateBounds()
+    return this._left
   }
 
   /**
@@ -416,7 +390,8 @@ export class VisLabel {
    * @returns The x coordinate of the right edge.
    */
   public getRight (): number {
-    return this._x + this.width / 2
+    this._updateBounds()
+    return this._right
   }
 
   /**
@@ -424,7 +399,8 @@ export class VisLabel {
    * @returns The y coordinate of the top edge.
    */
   public getTop (): number {
-    return this._y - this.height
+    this._updateBounds()
+    return this._top
   }
 
   /**
@@ -432,7 +408,8 @@ export class VisLabel {
    * @returns The y coordinate of the bottom edge.
    */
   public getBottom (): number {
-    return this._y
+    this._updateBounds()
+    return this._bottom
   }
 
   /**
@@ -440,6 +417,7 @@ export class VisLabel {
    */
   public raise (): void {
     this._container.appendChild(this.element)
+    this._isMounted = true
   }
 
   /**
@@ -447,6 +425,7 @@ export class VisLabel {
    */
   public destroy (): void {
     this.element.remove()
+    this._isMounted = false
   }
 
   /** Re-measures from the DOM if the element is currently mounted. No-op otherwise. */
@@ -469,14 +448,76 @@ export class VisLabel {
   private _resetRealSizeCache (): void {
     this._cachedRealWidth = undefined
     this._cachedRealHeight = undefined
+    this._boundsAreStale = true
   }
 
-  /** Fills real-size cache from getBoundingClientRect when element is in DOM. Called after appendChild when cache does not exist. */
+  /** Fills real-size cache from the DOM when the element is mounted. */
   private _updateRealSizeCache (): void {
-    if (this.element.parentElement === null) return
-    const rect = this.element.getBoundingClientRect()
-    this._cachedRealWidth = rect.width
-    this._cachedRealHeight = rect.height
+    if (!this._isMounted) return
+    this._cachedRealWidth = this.element.offsetWidth
+    this._cachedRealHeight = this.element.offsetHeight
+    this._boundsAreStale = true
+  }
+
+  private _applyPadding ({ top, right, bottom, left }: LabelPadding): void {
+    this.element.style.padding = `${top}px ${right}px ${bottom}px ${left}px`
+  }
+
+  private _updateBounds (): void {
+    if (!this._boundsAreStale) return
+    if (this._rotation === 0) {
+      const halfWidth = this.width / 2
+      this._left = this._x - halfWidth
+      this._right = this._x + halfWidth
+      this._top = this._y - this.height
+      this._bottom = this._y
+    } else {
+      const corners = cornersOfFirst
+      this._writeCorners(corners)
+      this._left = Math.min(corners[0], corners[2], corners[4], corners[6])
+      this._top = Math.min(corners[1], corners[3], corners[5], corners[7])
+      this._right = Math.max(corners[0], corners[2], corners[4], corners[6])
+      this._bottom = Math.max(corners[1], corners[3], corners[5], corners[7])
+    }
+    this._boundsAreStale = false
+  }
+
+  private _writeCorners (corners: Float64Array): void {
+    const halfWidth = this.width / 2
+    const height = this.height
+    const radians = (this._rotation * Math.PI) / 180
+    const widthX = -halfWidth * Math.cos(radians)
+    const widthY = -halfWidth * Math.sin(radians)
+    const heightX = height * Math.sin(radians)
+    const heightY = -height * Math.cos(radians)
+    corners[0] = this._x + widthX + heightX
+    corners[1] = this._y + widthY + heightY
+    corners[2] = this._x - widthX + heightX
+    corners[3] = this._y - widthY + heightY
+    corners[4] = this._x - widthX
+    corners[5] = this._y - widthY
+    corners[6] = this._x + widthX
+    corners[7] = this._y + widthY
+  }
+
+  private _padding (): LabelPadding {
+    return this._customPadding ?? DEFAULT_PADDING
+  }
+
+  private _setContent (content: string | number, isHtml: boolean): void {
+    if (this._text === content && this._contentIsHtml === isHtml) return
+    this._text = content
+    this._contentIsHtml = isHtml
+    this._hasText = typeof content === 'number' || /\S/.test(content)
+    this._writeContent()
+    this._needsMeasureUpdate = true
+    this._resetRealSizeCache()
+  }
+
+  private _writeContent (): void {
+    const text = typeof this._text === 'number' ? String(this._text) : this._text
+    if (this._contentIsHtml) this.element.innerHTML = text
+    else this.element.textContent = text
   }
 
   /**
@@ -485,17 +526,12 @@ export class VisLabel {
   private _estimateTextSize (): void {
     if (!this._needsMeasureUpdate) return
 
-    const { left, top, right, bottom } = this._customPadding ?? {
-      left: LEFT_RIGHT_PADDING,
-      top: TOP_BOTTOM_PADDING,
-      right: LEFT_RIGHT_PADDING,
-      bottom: TOP_BOTTOM_PADDING,
-    }
+    const { left, top, right, bottom } = this._padding()
     const fontSize = this._customFontSize ?? DEFAULT_FONT_SIZE
     const lines = this._getEstimatedTextLines()
     const longestLineLength = lines.reduce((longest, line) => Math.max(longest, line.length), 0)
     const lineHeight = fontSize * 1.2
-    this._estimatedWidth = fontSize * this.fontWidthHeightRatio * longestLineLength + left + right
+    this._estimatedWidth = fontSize * FONT_WIDTH_HEIGHT_RATIO * longestLineLength + left + right
     this._estimatedHeight = (lines.length > 1 ? lineHeight * lines.length : fontSize) + top + bottom
 
     this._needsMeasureUpdate = false
