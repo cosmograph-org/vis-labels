@@ -1,8 +1,8 @@
 /* Vis Labels Library Styles */
 /* Include this file in your project when using the `dontInjectStyles` option */
 
-:root {
-  --vis-label-background-color: #1e2428;
+:where(:root) {
+  --vis-label-background-color: none;
   --vis-label-color: inherit;
   --vis-label-border: none;
   --vis-label-box-shadow: none;
@@ -16,7 +16,7 @@
 }
 
 /* Container styles */
-.vis-label--labels-container {
+:where(.vis-label--labels-container) {
   transition: opacity 100ms;
   position: absolute;
   width: 100%;
@@ -27,16 +27,16 @@
   opacity: 1;
 }
 
-.vis-label--labels-container-hidden {
+:where(.vis-label--labels-container-hidden) {
   opacity: 0;
 }
 
-.vis-label--labels-container-hidden div {
+:where(.vis-label--labels-container-hidden) div {
   pointer-events: none;
 }
 
 /* Individual label styles */
-.vis-label--label {
+:where(.vis-label--label) {
   position: absolute;
   top: 0;
   left: 0;
@@ -62,7 +62,11 @@
   opacity: 1;
 }
 
-.vis-label--hidden {
+:where(.vis-label--capped) {
+  box-sizing: border-box;
+}
+
+:where(.vis-label--hidden) {
   /* We use "important" here because the users may pass their own label class, overriding the opacity */
   opacity: 0 !important;
 }

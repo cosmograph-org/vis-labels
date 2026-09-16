@@ -2,9 +2,12 @@ export const labelsContainerClassName = 'vis-label--labels-container'
 export const hiddenLabelsContainerClassName = 'vis-label--labels-container-hidden'
 export const labelClassName = 'vis-label--label'
 export const hiddenLabelClassName = 'vis-label--hidden'
+export const cappedLabelClassName = 'vis-label--capped'
+export const pathClassName = 'vis-label--path'
+export const ribbonClassName = 'vis-label--ribbon'
 
 export const labelContainerStyles = `
-  :root {
+  :where(:root) {
     --vis-label-background-color: none;
     --vis-label-color: inherit;
     --vis-label-border: none;
@@ -18,7 +21,7 @@ export const labelContainerStyles = `
     --vis-label-pointer-events: none;
   }
 
-  .${labelsContainerClassName} {
+  :where(.${labelsContainerClassName}) {
     transition: opacity 100ms;
     position: absolute;
     width: 100%;
@@ -29,7 +32,7 @@ export const labelContainerStyles = `
     opacity: 1;
   }
 
-  .${hiddenLabelsContainerClassName} {
+  :where(.${hiddenLabelsContainerClassName}) {
     opacity: 0;
 
     div {
@@ -39,7 +42,7 @@ export const labelContainerStyles = `
 `
 
 export const labelStyles = `
-  .${labelClassName} {
+  :where(.${labelClassName}) {
     position: absolute;
     top: 0;
     left: 0;
@@ -65,8 +68,12 @@ export const labelStyles = `
     opacity: 1;
   }
 
+  :where(.${cappedLabelClassName}) {
+    box-sizing: border-box;
+  }
+
   /* We use "important" here because the users may pass their own label class, overriding the opacity */
-  .${hiddenLabelClassName} {
+  :where(.${hiddenLabelClassName}) {
     opacity: 0 !important;
   }
 `
