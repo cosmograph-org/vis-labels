@@ -103,6 +103,14 @@ export class LabelRenderer {
     }
   }
 
+  public setLabelPosition (id: string, x: number, y: number, rotation?: number): boolean {
+    const label = this._visLabels.get(id)
+    if (!label) return false
+    label.setPosition(x, y)
+    if (rotation !== undefined) label.setRotation(rotation)
+    return true
+  }
+
   public draw (withIntersection = true): void {
     if (withIntersection) {
       this._intersectLabels()
@@ -113,6 +121,18 @@ export class LabelRenderer {
         cssLabel.setVisibility(cssLabel.isOnScreen(containerWidth, containerHeight)))
     }
     this._visLabels.forEach(cssLabel => cssLabel.draw())
+  }
+
+  public isLabelVisible (id: string): boolean {
+    return this._visLabels.get(id)?.getVisibility() ?? false
+  }
+
+  public getVisibleLabelIds (): string[] {
+    const ids: string[] = []
+    this._visLabels.forEach((label, id) => {
+      if (label.getVisibility()) ids.push(id)
+    })
+    return ids
   }
 
   public show (): void {
