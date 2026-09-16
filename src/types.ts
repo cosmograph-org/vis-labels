@@ -20,6 +20,8 @@ export interface LabelOptions {
   padding?: LabelPadding;
   /** Rotation in degrees. 0 = horizontal; positive = clockwise. */
   rotation?: number;
+  /** Caps the label's outer width in pixels, padding and border included, unlike `--vis-label-max-width`, which caps the content box. */
+  maxOuterWidth?: number;
 }
 
 export type OnClickCallback = (e: MouseEvent, label: LabelOptions) => void | undefined

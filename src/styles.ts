@@ -2,6 +2,7 @@ export const labelsContainerClassName = 'vis-label--labels-container'
 export const hiddenLabelsContainerClassName = 'vis-label--labels-container-hidden'
 export const labelClassName = 'vis-label--label'
 export const hiddenLabelClassName = 'vis-label--hidden'
+export const cappedLabelClassName = 'vis-label--capped'
 
 export const labelContainerStyles = `
   :where(:root) {
@@ -63,6 +64,10 @@ export const labelStyles = `
     
     transition: var(--vis-label-transition);
     opacity: 1;
+  }
+
+  :where(.${cappedLabelClassName}) {
+    box-sizing: border-box;
   }
 
   /* We use "important" here because the users may pass their own label class, overriding the opacity */

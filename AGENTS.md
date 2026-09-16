@@ -104,6 +104,7 @@ import { VisLabels } from '@cosmograph/vis-labels/react'
 - Use `opacity` for visual fade effects, but still call `draw()` after changing label state.
 - Use `shouldBeShown` sparingly to force important labels visible.
 - Use `rotation` in degrees when label orientation should follow an edge, path, or map feature. Rotated labels are tested for overlap with their rotated box, and changing `rotation` every frame does not re-measure the label.
+- Use `maxOuterWidth` to cap a label's whole drawn width in pixels, padding and border included, for example to the length of a link; the `--vis-label-max-width` CSS variable caps the content box instead. Combine it with CSS such as `white-space: nowrap; overflow: hidden; text-overflow: ellipsis` to cut text, or leave text free to wrap.
 - Use `className` or `style` for visual styling, but prefer `fontSize` and `padding` options when those values affect label measurement.
 
 ## Performance Tips
