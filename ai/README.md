@@ -102,7 +102,7 @@ export function LabelsOverlay (): JSX.Element {
 - Use `weight` to decide which label wins when labels overlap. Higher weight is preferred.
 - Use `opacity` for visual fade effects, but still call `draw()` after changing label state.
 - Use `shouldBeShown` sparingly to force important labels visible.
-- Use `rotation` in degrees when label orientation should follow an edge, path, or map feature.
+- Use `rotation` in degrees when label orientation should follow an edge, path, or map feature. Rotated labels are tested for overlap with their rotated box, and changing `rotation` every frame does not re-measure the label.
 - Use `className` or `style` for visual styling, but prefer `fontSize` and `padding` options when those values affect label measurement.
 
 ## HTML and Security

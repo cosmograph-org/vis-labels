@@ -2,10 +2,13 @@ import type { Meta, StoryObj } from '@storybook/html-vite'
 import { renderContainer, renderFullViewportContainer, LABEL_RENDERER_DIV_ATTR } from './render-container'
 import { emptyLabelVisibility } from './edge-cases/empty-label-visibility'
 import { swarmOfLabels, smallSwarmOfLabels } from './edge-cases/intersect-labels-performance'
+import { rotatedLabelsOverlap } from './edge-cases/rotated-labels-overlap'
 // @ts-expect-error - Vite raw import
 import emptyLabelVisibilitySource from './edge-cases/empty-label-visibility.ts?raw'
 // @ts-expect-error - Vite raw import
 import intersectLabelsPerformanceSource from './edge-cases/intersect-labels-performance.ts?raw'
+// @ts-expect-error - Vite raw import
+import rotatedLabelsOverlapSource from './edge-cases/rotated-labels-overlap.ts?raw'
 
 const meta = {
   id: 'test',
@@ -33,6 +36,25 @@ export const EmptyLabelVisibility: Story = {
     const div = canvasElement.querySelector<HTMLDivElement>(`[${LABEL_RENDERER_DIV_ATTR}]`)
     if (!div) return
     emptyLabelVisibility(div)
+  },
+}
+
+export const RotatedLabelsOverlap: Story = {
+  name: 'Rotated labels overlap',
+  render: () => renderContainer({ width: '340px', height: '400px' }),
+  parameters: {
+    docs: {
+      source: {
+        type: 'code',
+        code: rotatedLabelsOverlapSource,
+        language: 'typescript',
+      },
+    },
+  },
+  play: ({ canvasElement }) => {
+    const div = canvasElement.querySelector<HTMLDivElement>(`[${LABEL_RENDERER_DIV_ATTR}]`)
+    if (!div) return
+    rotatedLabelsOverlap(div)
   },
 }
 

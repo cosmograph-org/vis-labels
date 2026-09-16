@@ -4,17 +4,23 @@ import { LabelOptions, OnClickCallback, LabelRendererOptions, LabelPadding } fro
 import { labelContainerStyles, injectStyles, labelsContainerClassName, hiddenLabelsContainerClassName } from './styles.js'
 
 let globalVisLabelRendererStyles: HTMLStyleElement | undefined
+const byLeftEdge = (a: VisLabel, b: VisLabel): number => a.getLeft() - b.getLeft()
 export class LabelRenderer {
   private _visLabels = new Map<string, VisLabel>()
   private _container: HTMLDivElement
   private _onClickCallback: OnClickCallback | undefined
   private _pointerEvents: LabelRendererOptions['pointerEvents'] | undefined
   private _elementToData = new Map<HTMLDivElement, LabelOptions>()
+  private _labelOrder: VisLabel[] = []
+  private _labelOrderIsStale = true
+  private _onScreenLabels: VisLabel[] = []
+  private _offScreenLabels: VisLabel[] = []
   private _dispatchWheelEventElement: HTMLElement | undefined
   private _dontInjectStyles: boolean | undefined
   private _padding: LabelPadding | undefined
   private _fontSize: number | undefined
   private _dangerousHtml = false
+  private _sweep = 0
   private readonly _boundOnClick = this._onClick.bind(this)
   private readonly _boundOnWheel = this._onWheel.bind(this)
 
@@ -45,20 +51,23 @@ export class LabelRenderer {
   }
 
   public setLabels (labels: LabelOptions[]): void {
-    // Add new labels and take into account existing labels
-    const labelsToDelete = new Map(this._visLabels)
+    this._sweep += 1
+    let named = 0
     labels.forEach(label => {
       const { x, y, fontSize, color, text, weight, opacity, shouldBeShown, style, className, padding, rotation } = label
       const exists = this._visLabels.get(label.id)
-      if (exists) {
-        labelsToDelete.delete(label.id)
-      } else {
+      if (!exists) {
+        this._labelOrderIsStale = true
         const cssLabel = new VisLabel(this._container, label.text, this._dontInjectStyles, this._dangerousHtml)
         this._visLabels.set(label.id, cssLabel)
         this._elementToData.set(cssLabel.element, label)
       }
       const labelToUpdate = this._visLabels.get(label.id)
       if (labelToUpdate) {
+        if (labelToUpdate.seenAt !== this._sweep) {
+          labelToUpdate.seenAt = this._sweep
+          named += 1
+        }
         if (this._dangerousHtml) {
           labelToUpdate.dangerouslySetHtml(text)
         } else {
@@ -92,15 +101,15 @@ export class LabelRenderer {
       }
     })
 
-    // Remove labels from points that don't longer exist
-    for (const [key] of labelsToDelete) {
-      const cssLabel = this._visLabels.get(key)
-      if (cssLabel) {
-        this._elementToData.delete(cssLabel.element)
-        cssLabel.destroy()
-      }
-      this._visLabels.delete(key)
-    }
+    // Remove labels from points that don't longer exist. Counted by labels named, not entries, so a repeated id can't hide a removal.
+    if (this._visLabels.size === named) return
+    this._visLabels.forEach((cssLabel, id) => {
+      if (cssLabel.seenAt === this._sweep) return
+      this._elementToData.delete(cssLabel.element)
+      cssLabel.destroy()
+      this._visLabels.delete(id)
+      this._labelOrderIsStale = true
+    })
   }
 
   public setLabelPosition (id: string, x: number, y: number, rotation?: number): boolean {
@@ -168,52 +177,72 @@ export class LabelRenderer {
   }
 
   private _intersectLabels (): void {
-    const visLabels = Array.from(this._visLabels.values())
+    if (this._labelOrderIsStale) {
+      this._labelOrder = Array.from(this._visLabels.values())
+      this._labelOrderIsStale = false
+    }
 
     // Cache container dimensions to avoid repeated layout recalculations
     const containerWidth = this._container.offsetWidth
     const containerHeight = this._container.offsetHeight
 
-    // Set label visibility to true if they are on screen
-    visLabels.forEach(l => l.setVisibility(l.isOnScreen(containerWidth, containerHeight)))
-
-    // Re-measure any visible labels already mounted but with a stale/missing size cache
-    // (e.g. after content or style changed). Labels not yet in the DOM are skipped (no-op).
-    visLabels.forEach(l => { if (l.getVisibility()) l.refreshSizeFromDom() })
-
-    if (visLabels.length <= 1) return
-
-    // Sweep and Prune: Sort labels by their left edge (X-axis)
-    visLabels.sort((a, b) => a.getLeft() - b.getLeft())
-
-    // Check for overlaps using the sorted order
-    for (let i = 0; i < visLabels.length; i += 1) {
-      const label1 = visLabels[i]
-      if (!label1.getVisibility()) continue
-
-      for (let j = i + 1; j < visLabels.length; j += 1) {
-        const label2 = visLabels[j]
-        if (!label2.getVisibility()) continue
-
-        // No further x-overlap possible (sorted by left edge)
-        if (label2.getLeft() > label1.getRight()) break
-
-        // Continue if the labels don't overlap
-        if (!label1.overlaps(label2)) continue
-
-        // Prefer: 1) higher weight, 2) previously visible (when equal weight and no forceShow)
-        const preferLabel2 = label2.getWeight() > label1.getWeight() ||
-          (label1.getWeight() === label2.getWeight() &&
-            !label1.getForceShow() && !label2.getForceShow() &&
-            label2.getPrevVisible() && !label1.getPrevVisible())
-
-        const [winner, loser] = preferLabel2 ? [label2, label1] : [label1, label2]
-        loser.setVisibility(winner.getForceShow() ? false : loser.getForceShow())
-
-        // No further comparisons with this label
-        if (!label1.getVisibility()) break
+    const onScreen = this._onScreenLabels
+    const offScreen = this._offScreenLabels
+    onScreen.length = 0
+    offScreen.length = 0
+    for (const label of this._labelOrder) {
+      // Set label visibility to true if they are on screen
+      label.setVisibility(label.isOnScreen(containerWidth, containerHeight))
+      if (label.getVisibility()) {
+        // Re-measure any visible labels already mounted but with a stale/missing size cache
+        // (e.g. after content or style changed). Labels not yet in the DOM are skipped (no-op).
+        label.refreshSizeFromDom()
+        onScreen.push(label)
+      } else {
+        offScreen.push(label)
       }
     }
+
+    if (onScreen.length > 1) {
+      // Sweep and Prune: Sort labels by their left edge (X-axis)
+      onScreen.sort(byLeftEdge)
+
+      // Check for overlaps using the sorted order
+      for (let i = 0; i < onScreen.length; i += 1) {
+        const label1 = onScreen[i]
+        if (!label1.getVisibility()) continue
+        const right = label1.getRight()
+
+        for (let j = i + 1; j < onScreen.length; j += 1) {
+          const label2 = onScreen[j]
+
+          // No further x-overlap possible (sorted by left edge)
+          if (label2.getLeft() > right) break
+          if (!label2.getVisibility()) continue
+
+          // Continue if the labels don't overlap
+          if (!label1.overlaps(label2)) continue
+
+          // Prefer: 1) higher weight, 2) previously visible (when equal weight and no forceShow)
+          const preferLabel2 = label2.getWeight() > label1.getWeight() ||
+            (label1.getWeight() === label2.getWeight() &&
+              !label1.getForceShow() && !label2.getForceShow() &&
+              label2.getPrevVisible() && !label1.getPrevVisible())
+
+          const winner = preferLabel2 ? label2 : label1
+          const loser = preferLabel2 ? label1 : label2
+          loser.setVisibility(winner.getForceShow() ? false : loser.getForceShow())
+
+          // No further comparisons with this label
+          if (!label1.getVisibility()) break
+        }
+      }
+    }
+
+    const order = this._labelOrder
+    order.length = 0
+    for (const label of onScreen) order.push(label)
+    for (const label of offScreen) order.push(label)
   }
 }
 

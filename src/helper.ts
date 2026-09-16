@@ -1,13 +1,24 @@
-export type Rect = {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+function hasSeparatingAxis (quad: ArrayLike<number>, quadOffset: number, other: ArrayLike<number>, otherOffset: number): boolean {
+  for (let edge = 0; edge < 2; edge += 1) {
+    const axisX = quad[quadOffset + edge * 2 + 1] - quad[quadOffset + edge * 2 + 3]
+    const axisY = quad[quadOffset + edge * 2 + 2] - quad[quadOffset + edge * 2]
+    let minQuad = Infinity
+    let maxQuad = -Infinity
+    let minOther = Infinity
+    let maxOther = -Infinity
+    for (let corner = 0; corner < 4; corner += 1) {
+      const quadProjection = quad[quadOffset + corner * 2] * axisX + quad[quadOffset + corner * 2 + 1] * axisY
+      const otherProjection = other[otherOffset + corner * 2] * axisX + other[otherOffset + corner * 2 + 1] * axisY
+      minQuad = Math.min(minQuad, quadProjection)
+      maxQuad = Math.max(maxQuad, quadProjection)
+      minOther = Math.min(minOther, otherProjection)
+      maxOther = Math.max(maxOther, otherProjection)
+    }
+    if (maxQuad < minOther || maxOther < minQuad) return true
+  }
+  return false
 }
 
-export function doRectsIntersect (rect1: Rect, rect2: Rect): boolean {
-  const [left1, top1, right1, bottom1] = [rect1.x, rect1.y + rect1.height, rect1.x + rect1.width, rect1.y]
-  const [left2, top2, right2, bottom2] = [rect2.x, rect2.y + rect2.height, rect2.x + rect2.width, rect2.y]
-
-  return !(top1 < bottom2 || top2 < bottom1 || right1 < left2 || right2 < left1)
+export function doQuadsIntersect (quads1: ArrayLike<number>, quads2: ArrayLike<number>, offset1 = 0, offset2 = 0): boolean {
+  return !hasSeparatingAxis(quads1, offset1, quads2, offset2) && !hasSeparatingAxis(quads2, offset2, quads1, offset1)
 }
