@@ -4,7 +4,7 @@ export const labelClassName = 'vis-label--label'
 export const hiddenLabelClassName = 'vis-label--hidden'
 
 export const labelContainerStyles = `
-  :root {
+  :where(:root) {
     --vis-label-background-color: none;
     --vis-label-color: inherit;
     --vis-label-border: none;
@@ -18,7 +18,7 @@ export const labelContainerStyles = `
     --vis-label-pointer-events: none;
   }
 
-  .${labelsContainerClassName} {
+  :where(.${labelsContainerClassName}) {
     transition: opacity 100ms;
     position: absolute;
     width: 100%;
@@ -29,7 +29,7 @@ export const labelContainerStyles = `
     opacity: 1;
   }
 
-  .${hiddenLabelsContainerClassName} {
+  :where(.${hiddenLabelsContainerClassName}) {
     opacity: 0;
 
     div {
@@ -39,7 +39,7 @@ export const labelContainerStyles = `
 `
 
 export const labelStyles = `
-  .${labelClassName} {
+  :where(.${labelClassName}) {
     position: absolute;
     top: 0;
     left: 0;
@@ -66,7 +66,7 @@ export const labelStyles = `
   }
 
   /* We use "important" here because the users may pass their own label class, overriding the opacity */
-  .${hiddenLabelClassName} {
+  :where(.${hiddenLabelClassName}) {
     opacity: 0 !important;
   }
 `
