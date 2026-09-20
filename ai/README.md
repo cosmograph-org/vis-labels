@@ -130,7 +130,7 @@ Never pass user-provided or unsanitized HTML to `dangerousHtml`.
 - Reuse one `LabelRenderer` per labels container.
 - Keep label `id` stable across frames to avoid destroying and recreating DOM nodes.
 - Batch updates with `setLabels(labels)` and call `draw()` once per frame.
-- When only positions change between frames, move labels with `setLabelPosition(id, x, y, rotation)` instead of passing every label to `setLabels` again.
+- Hand every label back to `setLabels` each frame. Options that did not change cost nothing to re-apply, so there is no cheaper call for moving labels.
 - Avoid changing text, font size, padding, class names, or large inline styles every frame; those can invalidate measurements.
 - Prefer renderer-level `fontSize` and `padding` when many labels share the same values.
 - Pass `draw(false)` when overlap resolution is not needed for a frame.

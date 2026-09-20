@@ -76,6 +76,8 @@ export class LabelRenderer {
         } else {
           labelToUpdate.setText(text)
         }
+        if (path !== undefined) labelToUpdate.setPath(path)
+        else labelToUpdate.resetPath()
         labelToUpdate.setPosition(x, y)
         if (style !== undefined) labelToUpdate.setStyle(style)
         if (weight !== undefined) labelToUpdate.setWeight(weight)
@@ -103,8 +105,6 @@ export class LabelRenderer {
         else labelToUpdate.resetRotation()
         if (maxOuterWidth !== undefined) labelToUpdate.setMaxOuterWidth(maxOuterWidth)
         else labelToUpdate.resetMaxOuterWidth()
-        if (path !== undefined) labelToUpdate.setPath(path)
-        else labelToUpdate.resetPath()
       }
     })
 
@@ -117,14 +117,6 @@ export class LabelRenderer {
       this._visLabels.delete(id)
       this._labelOrderIsStale = true
     })
-  }
-
-  public setLabelPosition (id: string, x: number, y: number, rotation?: number): boolean {
-    const label = this._visLabels.get(id)
-    if (!label) return false
-    label.setPosition(x, y)
-    if (rotation !== undefined) label.setRotation(rotation)
-    return true
   }
 
   public draw (withIntersection = true): void {
