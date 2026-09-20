@@ -1,4 +1,4 @@
-import { doQuadsIntersect, styledRunsOf, svgStyleOfRun } from './helper.js'
+import { doQuadsIntersect, isSamePath, styledRunsOf, svgStyleOfRun } from './helper.js'
 import {
   DEFAULT_FONT_SIZE, DEFAULT_PADDING, FONT_WIDTH_HEIGHT_RATIO, LINE_HEIGHT_RATIO, PATH_LABEL_STYLE, PATH_SVG_STYLE, SVG_NAMESPACE,
 } from './variables.js'
@@ -125,6 +125,7 @@ export class VisLabel {
    * @param y - The y coordinate of the label
    */
   public setPosition (x: number, y: number): void {
+    if (this._pathState) return
     if (this._x === x && this._y === y) return
     this._x = x
     this._y = y
@@ -320,9 +321,11 @@ export class VisLabel {
    * @param path - The path in container pixels.
    */
   public setPath (path: LabelPath): void {
-    if (this._pathState) {
-      this._pathState.path = path
-      this._pathState.isLayoutStale = true
+    const state = this._pathState
+    if (state) {
+      if (isSamePath(state.path, path)) return
+      state.path = path
+      state.isLayoutStale = true
       this._boundsAreStale = true
       return
     }

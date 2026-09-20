@@ -1,4 +1,4 @@
-import { FontParts, GraphemeSegmenter, GraphemeSegmenterConstructor, TextRun } from './types.js'
+import { FontParts, GraphemeSegmenter, GraphemeSegmenterConstructor, LabelPath, TextRun } from './types.js'
 import { LINE_BREAKING_TAGS, MAX_CACHED_MEASUREMENTS, TAG_STYLES } from './variables.js'
 
 let graphemeSegmenter: GraphemeSegmenter | undefined
@@ -75,6 +75,16 @@ export function styledRunsOf (html: string): TextRun[] {
   while (runs.length && !runs[0].text.trim()) runs.shift()
   while (runs.length && !runs[runs.length - 1].text.trim()) runs.pop()
   return runs
+}
+
+export function isSamePath (a: LabelPath, b: LabelPath): boolean {
+  return a === b || (
+    a.start[0] === b.start[0] && a.start[1] === b.start[1] &&
+    a.end[0] === b.end[0] && a.end[1] === b.end[1] &&
+    a.control?.[0] === b.control?.[0] && a.control?.[1] === b.control?.[1] &&
+    a.inset?.[0] === b.inset?.[0] && a.inset?.[1] === b.inset?.[1] &&
+    a.weight === b.weight && a.offset === b.offset
+  )
 }
 
 export function svgStyleOfRun (style: string): string {
