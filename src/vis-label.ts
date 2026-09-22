@@ -722,7 +722,7 @@ export class VisLabel {
     state.lineHeight = Number.isFinite(lineHeight) ? lineHeight : measured?.lineHeight ?? parseFloat(computed.fontSize) * LINE_HEIGHT_RATIO
     this._applyPathModeStyles()
     state.isLayoutStale = true
-    state.writtenRibbon = ''
+    state.writtenRibbon = undefined
 
     const { left, top, right, bottom } = this._padding()
     this._cachedRealWidth = (state.text?.width ?? 0) + left + right
