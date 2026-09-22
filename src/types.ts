@@ -157,7 +157,7 @@ export type PathState = {
   ribbon: SVGPathElement | undefined;
   textPath: SVGTextPathElement | undefined;
   writtenBaseline: string;
-  writtenRibbon: string;
+  writtenRibbon: string | undefined;
   writtenOffset: string;
   writtenText: string;
 }
