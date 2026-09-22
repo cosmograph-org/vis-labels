@@ -148,6 +148,8 @@ export type PathState = {
   areStylesStale: boolean;
   fits: boolean;
   lineHeight: number;
+  padding: LabelPadding | undefined;
+  maxOuterWidth: number | undefined;
   background: string;
   borderColor: string;
   borderWidth: number;

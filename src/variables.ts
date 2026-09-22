@@ -32,6 +32,7 @@ export const PATH_LABEL_STYLE: Partial<CSSStyleDeclaration> = {
   right: '0',
   bottom: '0',
   padding: '0',
+  maxWidth: 'none',
   background: 'none',
   border: 'none',
   boxShadow: 'none',
