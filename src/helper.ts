@@ -83,7 +83,8 @@ export function isSamePath (a: LabelPath, b: LabelPath): boolean {
     a.end[0] === b.end[0] && a.end[1] === b.end[1] &&
     a.control?.[0] === b.control?.[0] && a.control?.[1] === b.control?.[1] &&
     a.inset?.[0] === b.inset?.[0] && a.inset?.[1] === b.inset?.[1] &&
-    a.weight === b.weight && a.offset === b.offset && a.minCharacters === b.minCharacters
+    a.weight === b.weight && a.offset === b.offset && a.minCharacters === b.minCharacters &&
+    a.maxLengthRatio === b.maxLengthRatio
   )
 }
 

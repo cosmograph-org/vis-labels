@@ -344,16 +344,19 @@ export function layoutPath (path: LabelPath, text: MeasuredText, options: PathLa
   const baselineDistance = offset + options.paddingBottom + options.lineHeight / 2 - side * inkCentre
   sampleCurve(current, side, baselineDistance, false)
 
+  // The room is measured along the path rather than the baseline, which is longer on the outer side of a bend, so a
+  // label is cut the same whichever side it sits on. It is still kept on its baseline, which can be the shorter one.
   const total = pathLength[SAMPLE_COUNT]
-  const startOffset = interpolate(baseLength, indexAt(pathLength, Math.min(current.startInset, total)))
-  const endOffset = interpolate(baseLength, indexAt(pathLength, Math.max(0, total - current.endInset)))
-
-  const available = Math.min(options.maxWidth - options.paddingLeft - options.paddingRight, endOffset - startOffset)
+  const spanStart = Math.min(current.startInset, total)
+  const spanEnd = Math.max(spanStart, total - current.endInset)
+  const center = interpolate(baseLength, indexAt(pathLength, (spanStart + spanEnd) / 2))
+  const span = (spanEnd - spanStart) * (path.maxLengthRatio ?? 1)
+  const onBaseline = Math.min(center, baseLength[SAMPLE_COUNT] - center) * 2
+  const available = Math.min(options.maxWidth - options.paddingLeft - options.paddingRight, span, onBaseline)
   if (available <= 0 || !fitRuns(text, available, path.minCharacters ?? 1, layout.runs)) return false
 
   let width = 0
   for (const run of layout.runs) width += run.width
-  const center = (startOffset + endOffset) / 2
   layout.textCenter = center
 
   pointAt(indexAt(baseLength, center), offset + thickness / 2)
