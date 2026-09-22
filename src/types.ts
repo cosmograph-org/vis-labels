@@ -20,6 +20,8 @@ export interface LabelPath {
   weight?: number;
   /** Length in pixels kept free at the start and at the end of the path, for example the radii of the nodes an edge connects. */
   inset?: [number, number];
+  /** Longest the text may run, as a share of the path's length between the insets, centred on it. Default: `1`. */
+  maxLengthRatio?: number;
   /** Distance in pixels between the path and the label. Ignored when the label is centred on the path. Default: `0`. */
   offset?: number;
   /** Fewest characters a text that doesn't fit may be cut to; with less room the label is hidden. Text that fits always shows. Default: `1`. */

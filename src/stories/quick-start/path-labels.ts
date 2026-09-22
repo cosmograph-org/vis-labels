@@ -10,7 +10,7 @@ type Edge = {
   bend: number;
   style?: string;
   weight?: number;
-  trim?: number;
+  maxLengthRatio?: number;
 }
 
 const STYLES = `
@@ -45,7 +45,7 @@ const EDGES: Edge[] = [
     target: 2,
     text: 'reviewed the pull request that moves the labels renderer into its own package',
     bend: 0.3,
-    trim: 0.16,
+    maxLengthRatio: 0.68,
   },
   { id: 'emoji', source: 2, target: 3, text: 'ships 🚀 from 🇯🇵 👍🏽', bend: -0.25 },
   { id: 'arabic', source: 3, target: 0, text: 'مرحبا بالعالم من مكتبة الرسوم', bend: 0.42, style: 'edge-violet', weight: 1 },
@@ -116,7 +116,6 @@ export function pathLabels (div: HTMLDivElement): () => void {
     nodeCircles[edge.source].setAttribute('cy', String(start[1]))
     nodeCircles[edge.target].setAttribute('cx', String(end[0]))
     nodeCircles[edge.target].setAttribute('cy', String(end[1]))
-    const trim = (edge.trim ?? 0) * Math.hypot(end[0] - start[0], end[1] - start[1])
     return {
       id: edge.id,
       text: edge.text,
@@ -129,7 +128,8 @@ export function pathLabels (div: HTMLDivElement): () => void {
         start,
         end,
         control,
-        inset: [NODES[edge.source].radius + trim, NODES[edge.target].radius + trim],
+        inset: [NODES[edge.source].radius, NODES[edge.target].radius],
+        maxLengthRatio: edge.maxLengthRatio,
         offset: LABEL_OFFSET,
       },
     }
