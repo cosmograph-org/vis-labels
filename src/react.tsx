@@ -1,7 +1,9 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
 
 import { LabelRenderer } from './index.js'
-import type { LabelOptions, LabelRendererOptions } from './types.js'
+import type {
+  LabelOptions, LabelPadding, LabelPath, LabelPlacement, LabelPoint, LabelRendererOptions, OnClickCallback,
+} from './types.js'
 
 export interface VisLabelsHandle {
   readonly renderer: LabelRenderer | null;
@@ -65,4 +67,4 @@ export const VisLabels = forwardRef<VisLabelsHandle, VisLabelsProps>(function Vi
 
 VisLabels.displayName = 'VisLabels'
 
-export type { LabelOptions, LabelRendererOptions }
+export type { LabelOptions, LabelPadding, LabelPath, LabelPlacement, LabelPoint, LabelRendererOptions, OnClickCallback }
