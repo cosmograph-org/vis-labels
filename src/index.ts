@@ -1,5 +1,5 @@
 import { VisLabel } from './vis-label.js'
-import { LabelOptions, OnClickCallback, LabelRendererOptions, LabelPadding, LabelPath, LabelPoint } from './types.js'
+import { LabelOptions, OnClickCallback, LabelRendererOptions, LabelPadding, LabelPath, LabelPlacement, LabelPoint } from './types.js'
 
 import { labelContainerStyles, injectStyles, labelsContainerClassName, hiddenLabelsContainerClassName } from './styles.js'
 
@@ -57,7 +57,7 @@ export class LabelRenderer {
     this._sweep += 1
     let named = 0
     labels.forEach(label => {
-      const { x, y, fontSize, color, text, weight, opacity, shouldBeShown, style, className, padding, rotation, maxOuterWidth, path } = label
+      const { x, y, fontSize, color, text, weight, opacity, shouldBeShown, style, className, padding, rotation, placement, maxOuterWidth, path } = label
       const exists = this._visLabels.get(label.id)
       if (!exists) {
         this._labelOrderIsStale = true
@@ -102,6 +102,8 @@ export class LabelRenderer {
         if (className !== undefined) labelToUpdate.setClassName(className)
         if (rotation !== undefined) labelToUpdate.setRotation(rotation)
         else labelToUpdate.resetRotation()
+        if (placement !== undefined) labelToUpdate.setPlacement(placement)
+        else labelToUpdate.resetPlacement()
         if (maxOuterWidth !== undefined) labelToUpdate.setMaxOuterWidth(maxOuterWidth)
         else labelToUpdate.resetMaxOuterWidth()
       }
@@ -255,4 +257,4 @@ export class LabelRenderer {
 }
 
 export { VisLabel }
-export type { LabelOptions, LabelPadding, LabelPath, LabelPoint, LabelRendererOptions, OnClickCallback }
+export type { LabelOptions, LabelPadding, LabelPath, LabelPlacement, LabelPoint, LabelRendererOptions, OnClickCallback }
