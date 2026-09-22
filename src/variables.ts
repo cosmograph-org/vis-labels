@@ -1,4 +1,4 @@
-import { LabelPadding } from './types.js'
+import { LabelPadding, LabelPlacement } from './types.js'
 
 export const TOP_BOTTOM_PADDING = 6
 export const LEFT_RIGHT_PADDING = 9
@@ -12,6 +12,7 @@ export const DEFAULT_PADDING: LabelPadding = Object.freeze({
 })
 
 export const FONT_WIDTH_HEIGHT_RATIO = 0.6
+export const HEIGHT_ABOVE_POSITION: Record<LabelPlacement, number> = { above: 1, center: 0.5, below: 0 }
 export const LINE_HEIGHT_RATIO = 1.2
 export const INK_ASCENT_RATIO = 0.72
 export const INK_DESCENT_RATIO = 0.2

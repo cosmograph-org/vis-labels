@@ -1,8 +1,8 @@
 import { doQuadsIntersect, isSamePath, styledRunsOf, svgStyleOfRun } from './helper.js'
 import {
-  DEFAULT_FONT_SIZE, DEFAULT_PADDING, FONT_WIDTH_HEIGHT_RATIO, LINE_HEIGHT_RATIO, PATH_LABEL_STYLE, PATH_SVG_STYLE, SVG_NAMESPACE,
+  DEFAULT_FONT_SIZE, DEFAULT_PADDING, FONT_WIDTH_HEIGHT_RATIO, HEIGHT_ABOVE_POSITION, LINE_HEIGHT_RATIO, PATH_LABEL_STYLE, PATH_SVG_STYLE, SVG_NAMESPACE,
 } from './variables.js'
-import { LabelPadding, LabelPath, LabelRendererOptions, MeasuredRun, PathState } from './types.js'
+import { LabelPadding, LabelPath, LabelPlacement, LabelRendererOptions, MeasuredRun, PathState } from './types.js'
 import { createPathLayout, estimateText, layoutPath, measureText, shapePath } from './path-text.js'
 import { acquireOptionRule, optionClassName, releaseOptionRule } from './option-rules.js'
 
@@ -54,6 +54,7 @@ export class VisLabel {
   private _customStyle: string | undefined
   private _customClassName: string | undefined
   private _rotation = 0
+  private _placement: LabelPlacement = 'above'
   private _left = 0
   private _top = 0
   private _right = 0
@@ -165,6 +166,25 @@ export class VisLabel {
    */
   public resetRotation (): void {
     this.setRotation(0)
+  }
+
+  /**
+   * Sets where the label sits: above, below or centred on its position, or on a path, on the outer side of its bend,
+   * the inner side or across it.
+   * @param placement - `'above'`, `'below'` or `'center'`.
+   */
+  public setPlacement (placement: LabelPlacement): void {
+    if (this._placement === placement) return
+    this._placement = placement
+    this._boundsAreStale = true
+    if (this._pathState) this._pathState.isLayoutStale = true
+  }
+
+  /**
+   * Resets the placement to above the label's position.
+   */
+  public resetPlacement (): void {
+    this.setPlacement('above')
   }
 
   /**
@@ -411,14 +431,15 @@ export class VisLabel {
       }
       const rotation = this._rotation
       const rotate = rotation !== 0 ? ` rotate(${rotation}deg)` : ''
-      // When rotated, pivot around the label’s bottom-center so it stays anchored at (x, y).
+      const anchorY = HEIGHT_ABOVE_POSITION[this._placement] * 100
+      // When rotated, pivot around the point that sits at (x, y) so it stays there.
       if (rotation !== 0) {
-        this.element.style.transformOrigin = '50% 100%'
+        this.element.style.transformOrigin = `50% ${anchorY}%`
       } else {
         this.element.style.removeProperty('transform-origin')
       }
       this.element.style.transform = `
-        translate(-50%, -100%)
+        translate(-50%, -${anchorY}%)
         translate3d(${this._x}px, ${this._y}px, 0)${rotate}
       `
     }
@@ -615,10 +636,12 @@ export class VisLabel {
       this._bottom = state.layout.bottom
     } else if (this._rotation === 0) {
       const halfWidth = this.width / 2
+      const height = this.height
+      const above = height * HEIGHT_ABOVE_POSITION[this._placement]
       this._left = this._x - halfWidth
       this._right = this._x + halfWidth
-      this._top = this._y - this.height
-      this._bottom = this._y
+      this._top = this._y - above
+      this._bottom = this._y + height - above
     } else {
       const corners = cornersOfFirst
       this._writeCorners(corners)
@@ -638,14 +661,19 @@ export class VisLabel {
     const widthY = -halfWidth * Math.sin(radians)
     const heightX = height * Math.sin(radians)
     const heightY = -height * Math.cos(radians)
-    corners[0] = this._x + widthX + heightX
-    corners[1] = this._y + widthY + heightY
-    corners[2] = this._x - widthX + heightX
-    corners[3] = this._y - widthY + heightY
-    corners[4] = this._x - widthX
-    corners[5] = this._y - widthY
-    corners[6] = this._x + widthX
-    corners[7] = this._y + widthY
+    const above = HEIGHT_ABOVE_POSITION[this._placement]
+    const topX = this._x + heightX * above
+    const topY = this._y + heightY * above
+    const bottomX = topX - heightX
+    const bottomY = topY - heightY
+    corners[0] = topX + widthX
+    corners[1] = topY + widthY
+    corners[2] = topX - widthX
+    corners[3] = topY - widthY
+    corners[4] = bottomX - widthX
+    corners[5] = bottomY - widthY
+    corners[6] = bottomX + widthX
+    corners[7] = bottomY + widthY
   }
 
   private _padding (): LabelPadding {
@@ -771,6 +799,7 @@ export class VisLabel {
     const { left, top, right, bottom } = state.padding ?? this._padding()
     state.fits = layoutPath(state.path, state.text, {
       maxWidth: state.maxOuterWidth ?? this._customMaxOuterWidth ?? Infinity,
+      placement: this._placement,
       offset: state.path.offset ?? 0,
       lineHeight: state.lineHeight,
       paddingLeft: left,

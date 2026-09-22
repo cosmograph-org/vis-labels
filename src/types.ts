@@ -7,6 +7,8 @@ export type LabelPadding = {
 
 export type LabelPoint = [number, number]
 
+export type LabelPlacement = 'above' | 'below' | 'center'
+
 export interface LabelPath {
   /** Start of the path in container pixels. */
   start: LabelPoint;
@@ -18,7 +20,7 @@ export interface LabelPath {
   weight?: number;
   /** Length in pixels kept free at the start and at the end of the path, for example the radii of the nodes an edge connects. */
   inset?: [number, number];
-  /** Distance in pixels between the path and the label. Default: `0`. */
+  /** Distance in pixels between the path and the label. Ignored when the label is centred on the path. Default: `0`. */
   offset?: number;
 }
 
@@ -37,6 +39,12 @@ export interface LabelOptions {
   padding?: LabelPadding;
   /** Rotation in degrees. 0 = horizontal; positive = clockwise. */
   rotation?: number;
+  /**
+   * Where the label sits: above, below or centred on `x` and `y`, turning with `rotation` about that point.
+   * On a path, above is the outer side of its bend (above a straight path), below the inner side, and centre across it.
+   * Default: `'above'`.
+   */
+  placement?: LabelPlacement;
   /** Caps the label's outer width in pixels, padding and border included, unlike `--vis-label-max-width`, which caps the content box. */
   maxOuterWidth?: number;
   /** Lays the text along a straight or curved path instead of at `x`, `y` and `rotation`. */
@@ -92,6 +100,7 @@ export type LineMetrics = {
 
 export type PathLayoutOptions = {
   maxWidth: number;
+  placement: LabelPlacement;
   offset: number;
   lineHeight: number;
   paddingLeft: number;

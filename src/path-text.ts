@@ -326,11 +326,13 @@ export function layoutPath (path: LabelPath, text: MeasuredText, options: PathLa
   layout.runs.length = 0
   layout.areShapesStale = true
   const current = orientPath(path)
-  const side = bendOf(current) < -MIN_BEND_RATIO ? -1 : 1
+  const outerSide = bendOf(current) < -MIN_BEND_RATIO ? -1 : 1
+  const side = options.placement === 'below' ? -outerSide : outerSide
   const thickness = options.paddingBottom + options.lineHeight + options.paddingTop
+  const offset = options.placement === 'center' ? -thickness / 2 : options.offset
   // Chrome and Safari resolve `dominant-baseline: central` differently on a `textPath`, so the baseline is placed by hand.
   const inkCentre = (text.inkAscent - text.inkDescent) / 2
-  const baselineDistance = options.offset + options.paddingBottom + options.lineHeight / 2 - side * inkCentre
+  const baselineDistance = offset + options.paddingBottom + options.lineHeight / 2 - side * inkCentre
   sampleCurve(current, side, baselineDistance, false)
 
   const total = pathLength[SAMPLE_COUNT]
@@ -345,19 +347,19 @@ export function layoutPath (path: LabelPath, text: MeasuredText, options: PathLa
   const center = (startOffset + endOffset) / 2
   layout.textCenter = center
 
-  pointAt(indexAt(baseLength, center), options.offset + thickness / 2)
+  pointAt(indexAt(baseLength, center), offset + thickness / 2)
   layout.centerX = edgePoint.x
   layout.centerY = edgePoint.y
 
   const from = center - width / 2 - options.paddingLeft
   const to = center + width / 2 + options.paddingRight
-  buildQuads(from, to, options.offset, thickness, layout)
+  buildQuads(from, to, offset, thickness, layout)
 
   layout.side = side
   layout.baselineDistance = baselineDistance
   layout.ribbonFrom = from
   layout.ribbonTo = to
-  layout.offset = options.offset
+  layout.offset = offset
   layout.thickness = thickness
   layout.borderRadius = options.borderRadius
   return true
