@@ -141,7 +141,13 @@ function cutRun (run: MeasuredRun, room: number): MeasuredRun | undefined {
   return { text: graphemes.slice(0, low).join(''), style: run.style, font: run.font, width: keptWidth }
 }
 
-function fitRuns (text: MeasuredText, available: number, into: MeasuredRun[]): boolean {
+function countGraphemes (runs: MeasuredRun[]): number {
+  let count = 0
+  for (const run of runs) count += splitGraphemes(run.text).length
+  return count
+}
+
+function fitRuns (text: MeasuredText, available: number, minCharacters: number, into: MeasuredRun[]): boolean {
   if (text.width <= available) {
     for (const run of text.runs) into.push(run)
     return into.length > 0
@@ -162,7 +168,10 @@ function fitRuns (text: MeasuredText, available: number, into: MeasuredRun[]): b
     break
   }
 
-  if (into.length === 0) return false
+  if (into.length === 0 || (minCharacters > 1 && countGraphemes(into) < minCharacters)) {
+    into.length = 0
+    return false
+  }
   const last = into[into.length - 1]
   into[into.length - 1] = { text: last.text + ELLIPSIS, style: last.style, font: last.font, width: last.width + text.ellipsisWidth }
   return true
@@ -340,7 +349,7 @@ export function layoutPath (path: LabelPath, text: MeasuredText, options: PathLa
   const endOffset = interpolate(baseLength, indexAt(pathLength, Math.max(0, total - current.endInset)))
 
   const available = Math.min(options.maxWidth - options.paddingLeft - options.paddingRight, endOffset - startOffset)
-  if (available <= 0 || !fitRuns(text, available, layout.runs)) return false
+  if (available <= 0 || !fitRuns(text, available, path.minCharacters ?? 1, layout.runs)) return false
 
   let width = 0
   for (const run of layout.runs) width += run.width
