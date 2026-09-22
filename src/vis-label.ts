@@ -529,13 +529,15 @@ export class VisLabel {
   }
 
   private _updateClasses (): void {
-    if (this.getVisibility()) {
+    if (!this.getVisibility()) {
+      this.element.className = this._classNames(true)
+    } else if (this._prevVisible) {
+      this.element.className = this._classNames(false)
+    } else {
       window.requestAnimationFrame(() => {
         this.element.className = this._classNames(false)
         if (this._pathState) this._pathState.areStylesStale = true
       })
-    } else {
-      this.element.className = this._classNames(true)
     }
   }
 
