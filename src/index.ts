@@ -85,9 +85,8 @@ export class LabelRenderer {
         if (color !== undefined) labelToUpdate.setColor(color)
 
         /**
-         * We need to check if the font size and padding are specified in the Options.
-         * These properties can't be set using general CSS styles or class names because
-         * they are used to calculate the label's size.
+         * We need to check if the font size and padding are specified in the Options,
+         * since a label is sized from them until it is measured. A class or style can override both.
          */
         if (fontSize !== undefined) labelToUpdate.setFontSize(fontSize)
         else if (this._fontSize !== undefined) labelToUpdate.setFontSize(this._fontSize)

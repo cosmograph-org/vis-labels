@@ -4,6 +4,7 @@ import {
 } from './variables.js'
 import { LabelPadding, LabelPath, LabelRendererOptions, MeasuredRun, PathState } from './types.js'
 import { createPathLayout, estimateText, layoutPath, measureText, shapePath } from './path-text.js'
+import { acquireOptionRule, optionClassName, releaseOptionRule } from './option-rules.js'
 
 import {
   labelStyles, injectStyles, labelClassName, hiddenLabelClassName, cappedLabelClassName, pathClassName, ribbonClassName,
@@ -45,6 +46,9 @@ export class VisLabel {
   private _contentIsHtml = false
   private _customPadding: LabelPadding | undefined = undefined
   private _customMaxOuterWidth: number | undefined = undefined
+  private _paddingRule: string | undefined = undefined
+  private _fontSizeRule: string | undefined = undefined
+  private _maxWidthRule: string | undefined = undefined
 
   private _customPointerEvents: LabelRendererOptions['pointerEvents'] | undefined
   private _customStyle: string | undefined
@@ -136,8 +140,7 @@ export class VisLabel {
    * Sets the CSS style of the element.
    * If a color, opacity or pointer-events is specified using the `setColor`,
    * `setOpacity` or `setPointerEvents` method, it takes priority over all custom styles.
-   * The `fontSize` style will not apply from `setStyle`, and the `transform` style
-   * will not apply, as it is used in the draw method to update the label position.
+   * The `transform` style will not apply, as it is used in the draw method to update the label position.
    * @param style - The style to be set.
    */
   public setStyle (style: string): void {
@@ -177,14 +180,13 @@ export class VisLabel {
   }
 
   /**
-   * Sets the font size of the text in pixels.
-   * This value cannot be changed through `setStyle` or `setClassName`
-   * methods because it is used to measure the width and height of the label.
+   * Sets the font size of the text in pixels, through a rule of zero specificity,
+   * so a font size given through `setStyle` or `setClassName` overrides it.
    * @param fontSize - The font size to set. If not specified, it will use the default value of `14px`.
    */
   public setFontSize (fontSize = DEFAULT_FONT_SIZE): void {
     if (this._customFontSize !== fontSize) {
-      this.element.style.fontSize = `${fontSize}px`
+      this._applyFontSize(fontSize)
       this._customFontSize = fontSize
       this._needsMeasureUpdate = true
       this._resetRealSizeCache()
@@ -196,7 +198,7 @@ export class VisLabel {
    */
   public resetFontSize (): void {
     if (this._customFontSize !== DEFAULT_FONT_SIZE) {
-      this.element.style.fontSize = `${DEFAULT_FONT_SIZE}px`
+      this._applyFontSize(DEFAULT_FONT_SIZE)
       this._customFontSize = DEFAULT_FONT_SIZE
       this._needsMeasureUpdate = true
       this._resetRealSizeCache()
@@ -267,9 +269,8 @@ export class VisLabel {
   }
 
   /**
-   * Sets the padding of the element in pixels.
-   * This value cannot be changed through `setStyle` or `setClassName`
-   * methods because it is used to measure the width and height of the label.
+   * Sets the padding of the element in pixels, through a rule of zero specificity,
+   * so a padding given through `setStyle` or `setClassName` overrides it.
    * @param padding - The padding object with left, top, right and bottom properties.
    * If not specified, it will use the default value of `{ left: 9px, top: 6px, right: 9px, bottom: 6px }`.
    */
@@ -280,7 +281,7 @@ export class VisLabel {
         this._customPadding.right !== padding.right ||
         this._customPadding.bottom !== padding.bottom) {
       this._customPadding = padding
-      if (!this._pathState) this._applyPadding(padding)
+      this._applyPadding(padding)
       this._needsMeasureUpdate = true
       this._resetRealSizeCache()
     }
@@ -292,14 +293,13 @@ export class VisLabel {
 
   /**
    * Caps the label's outer width in pixels, padding and border included, unlike `--vis-label-max-width`, which caps the content box.
+   * It is applied through a rule of zero specificity, so a `max-width` given through `setStyle` or `setClassName` overrides it.
    * @param maxOuterWidth - The maximum outer width in pixels.
    */
   public setMaxOuterWidth (maxOuterWidth: number): void {
     if (this._customMaxOuterWidth === maxOuterWidth) return
-    const wasSet = this._customMaxOuterWidth !== undefined
     this._customMaxOuterWidth = maxOuterWidth
-    if (!this._pathState) this._applyMaxOuterWidth(maxOuterWidth)
-    if (!wasSet) this._updateClasses()
+    this._applyMaxOuterWidth(maxOuterWidth)
     this._needsMeasureUpdate = true
     this._resetRealSizeCache()
   }
@@ -310,8 +310,7 @@ export class VisLabel {
   public resetMaxOuterWidth (): void {
     if (this._customMaxOuterWidth === undefined) return
     this._customMaxOuterWidth = undefined
-    this.element.style.removeProperty('max-width')
-    this._updateClasses()
+    this._setOptionRule('_maxWidthRule', undefined)
     this._needsMeasureUpdate = true
     this._resetRealSizeCache()
   }
@@ -340,6 +339,8 @@ export class VisLabel {
       areStylesStale: true,
       fits: false,
       lineHeight: 0,
+      padding: undefined,
+      maxOuterWidth: undefined,
       background: '',
       borderColor: '',
       borderWidth: 0,
@@ -521,6 +522,12 @@ export class VisLabel {
   public destroy (): void {
     this.element.remove()
     this._isMounted = false
+    this._setOptionRule('_paddingRule', undefined)
+    this._setOptionRule('_fontSizeRule', undefined)
+    this._setOptionRule('_maxWidthRule', undefined)
+    this._customPadding = undefined
+    this._customFontSize = undefined
+    this._customMaxOuterWidth = undefined
   }
 
   /** Re-measures from the DOM if the element is currently mounted. No-op otherwise. */
@@ -545,6 +552,9 @@ export class VisLabel {
     let names = `${labelClassName} ${this._customClassName || ''}`
     if (isHidden) names += ` ${hiddenLabelClassName}`
     if (this._customMaxOuterWidth !== undefined) names += ` ${cappedLabelClassName}`
+    if (this._paddingRule) names += ` ${optionClassName(this._paddingRule)}`
+    if (this._fontSizeRule) names += ` ${optionClassName(this._fontSizeRule)}`
+    if (this._maxWidthRule) names += ` ${optionClassName(this._maxWidthRule)}`
     return names
   }
 
@@ -574,11 +584,24 @@ export class VisLabel {
   }
 
   private _applyPadding ({ top, right, bottom, left }: LabelPadding): void {
-    this.element.style.padding = `${top}px ${right}px ${bottom}px ${left}px`
+    this._setOptionRule('_paddingRule', `padding: ${top}px ${right}px ${bottom}px ${left}px;`)
   }
 
   private _applyMaxOuterWidth (maxOuterWidth: number): void {
-    this.element.style.maxWidth = `${maxOuterWidth}px`
+    this._setOptionRule('_maxWidthRule', `max-width: ${maxOuterWidth}px;`)
+  }
+
+  private _applyFontSize (fontSize: number): void {
+    this._setOptionRule('_fontSizeRule', `font-size: ${fontSize}px;`)
+  }
+
+  private _setOptionRule (key: '_paddingRule' | '_fontSizeRule' | '_maxWidthRule', rule: string | undefined): void {
+    const current = this[key]
+    if (current === rule) return
+    const shared = rule === undefined ? undefined : acquireOptionRule(rule)
+    if (current !== undefined) releaseOptionRule(current)
+    this[key] = shared
+    this._updateClasses()
   }
 
   private _updateBounds (): void {
@@ -673,9 +696,6 @@ export class VisLabel {
     if (this._customColor) style.color = this._customColor
     if (this._customOpacity) style.opacity = String(this._customOpacity)
     if (this._customPointerEvents) style.pointerEvents = this._customPointerEvents
-    if (this._customFontSize) style.fontSize = `${this._customFontSize}px`
-    if (this._customPadding) this._applyPadding(this._customPadding)
-    if (this._customMaxOuterWidth !== undefined) this._applyMaxOuterWidth(this._customMaxOuterWidth)
   }
 
   private _applyPathModeStyles (): void {
@@ -683,7 +703,6 @@ export class VisLabel {
     Object.assign(style, PATH_LABEL_STYLE)
     style.removeProperty('transform')
     style.removeProperty('transform-origin')
-    style.removeProperty('max-width')
     if (this._pathState?.svg) this._pathState.svg.style.pointerEvents = this._customPointerEvents ?? ''
   }
 
@@ -707,6 +726,14 @@ export class VisLabel {
     // Read from the label's own box, so that a class or a `style` option styles both kinds of label.
     this._writeOwnStyles()
     const computed = getComputedStyle(this.element)
+    state.padding = {
+      left: parseFloat(computed.paddingLeft) || 0,
+      top: parseFloat(computed.paddingTop) || 0,
+      right: parseFloat(computed.paddingRight) || 0,
+      bottom: parseFloat(computed.paddingBottom) || 0,
+    }
+    const maxWidth = computed.maxWidth.endsWith('px') ? parseFloat(computed.maxWidth) : Infinity
+    state.maxOuterWidth = computed.boxSizing === 'border-box' ? maxWidth : maxWidth + state.padding.left + state.padding.right
     state.background = computed.backgroundColor
     state.borderColor = computed.borderTopColor
     state.borderWidth = parseFloat(computed.borderTopWidth) || 0
@@ -724,7 +751,7 @@ export class VisLabel {
     state.isLayoutStale = true
     state.writtenRibbon = undefined
 
-    const { left, top, right, bottom } = this._padding()
+    const { left, top, right, bottom } = state.padding
     this._cachedRealWidth = (state.text?.width ?? 0) + left + right
     this._cachedRealHeight = state.lineHeight + top + bottom
     this._boundsAreStale = true
@@ -741,9 +768,9 @@ export class VisLabel {
     const fontSize = this._customFontSize ?? DEFAULT_FONT_SIZE
     if (!state.text) state.text = estimateText(state.runs, fontSize, FONT_WIDTH_HEIGHT_RATIO)
     if (!state.lineHeight) state.lineHeight = state.text.lineHeight
-    const { left, top, right, bottom } = this._padding()
+    const { left, top, right, bottom } = state.padding ?? this._padding()
     state.fits = layoutPath(state.path, state.text, {
-      maxWidth: this._customMaxOuterWidth ?? Infinity,
+      maxWidth: state.maxOuterWidth ?? this._customMaxOuterWidth ?? Infinity,
       offset: state.path.offset ?? 0,
       lineHeight: state.lineHeight,
       paddingLeft: left,
