@@ -22,6 +22,8 @@ export interface LabelPath {
   inset?: [number, number];
   /** Distance in pixels between the path and the label. Ignored when the label is centred on the path. Default: `0`. */
   offset?: number;
+  /** Fewest characters a text that doesn't fit may be cut to; with less room the label is hidden. Text that fits always shows. Default: `1`. */
+  minCharacters?: number;
 }
 
 export interface LabelOptions {
