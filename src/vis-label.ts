@@ -243,6 +243,12 @@ export class VisLabel {
   public resetColor (): void {
     if (this._customColor === undefined) return
     this.element.style.removeProperty('--vis-label-color')
+    if (this._customStyle) {
+      // Restore the style's color variable without rewriting positioning or other inline styles.
+      const style = document.createElement('div').style
+      style.cssText = this._customStyle
+      this.element.style.setProperty('--vis-label-color', style.getPropertyValue('--vis-label-color'), style.getPropertyPriority('--vis-label-color'))
+    }
     this._customColor = undefined
   }
 
@@ -722,7 +728,7 @@ export class VisLabel {
     const { style } = this.element
     style.cssText = this._customStyle ?? ''
     if (this._customColor) style.setProperty('--vis-label-color', this._customColor)
-    if (this._customOpacity) style.opacity = String(this._customOpacity)
+    if (this._customOpacity !== undefined) style.opacity = String(this._customOpacity)
     if (this._customPointerEvents) style.pointerEvents = this._customPointerEvents
   }
 
