@@ -73,6 +73,8 @@ label.setVisibility(true)
 label.draw()
 ```
 
+For individual labels, `setDefaultColor(color)` supplies a default text color that CSS can override; `resetDefaultColor()` clears that default. These replace `setColor()` and `resetColor()`.
+
 ## React Usage
 
 Use the React wrapper from the `react` subpath:
@@ -108,7 +110,7 @@ export function LabelsOverlay (): JSX.Element {
 - Use `path` to lay text along an edge instead of placing it at `x` and `y`: give its `start`, `end` and, for a curve, its `control` point and `weight`; `inset` keeps the text clear of the nodes at either end, `maxLengthRatio` caps it at a share of the length left between them, and `offset` holds the label off the line. The text reads left to right on the side `placement` gives and is cut with an ellipsis when it doesn't fit; `minCharacters` hides a label that would be cut shorter than that.
 - A label on a path, straight or curved, is SVG text on a `textPath` over a shape that carries the label's `padding`, `background-color`, `border` and `border-radius`; the rest of what a CSS box can have, such as `box-shadow`, does not carry over.
 - On a path, the bottom padding is the gap on the link side and the top padding the gap on the far side. The text is drawn in an element of the `vis-label--path` class, over one of the `vis-label--ribbon` class.
-- Use `className` or `style` for visual styling. The `fontSize`, `padding` and `maxOuterWidth` options are defaults that a class or `style` overrides, and they size a label until it is measured.
+- Use `className` or `style` for visual styling. The `fontSize`, `padding` and `maxOuterWidth` options are defaults that a class or `style` overrides, and they size a label until it is measured. The `color` option is a default too: it sets the `--vis-label-color` variable, so a `color` from a class or `style` wins.
 
 ## HTML and Security
 

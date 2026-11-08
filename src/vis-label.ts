@@ -139,8 +139,8 @@ export class VisLabel {
 
   /**
    * Sets the CSS style of the element.
-   * If a color, opacity or pointer-events is specified using the `setColor`,
-   * `setOpacity` or `setPointerEvents` method, it takes priority over all custom styles.
+   * If an opacity or pointer-events is specified using the `setOpacity` or `setPointerEvents` method,
+   * it takes priority over all custom styles. A `color` given here overrides the one from `setDefaultColor`.
    * The `transform` style will not apply, as it is used in the draw method to update the label position.
    * @param style - The style to be set.
    */
@@ -226,23 +226,29 @@ export class VisLabel {
   }
 
   /**
-   * Sets the color of the element.
-   * This color will rewrite the color from `setStyle` CSS style if specified.
+   * Sets the default text color through the `--vis-label-color` CSS variable,
+   * so a `color` given through `setClassName` or `setStyle` overrides it.
    * @param color - The color to set
    */
-  public setColor (color: string): void {
+  public setDefaultColor (color: string): void {
     if (this._customColor !== color) {
-      this.element.style.color = color
+      this.element.style.setProperty('--vis-label-color', color)
       this._customColor = color
     }
   }
 
   /**
-   * Resets the color of the element.
+   * Clears the default text color, restoring any color variable supplied through `setStyle`.
    */
-  public resetColor (): void {
+  public resetDefaultColor (): void {
     if (this._customColor === undefined) return
-    this.element.style.removeProperty('color')
+    this.element.style.removeProperty('--vis-label-color')
+    if (this._customStyle) {
+      // Restore the style's color variable without rewriting positioning or other inline styles.
+      const style = document.createElement('div').style
+      style.cssText = this._customStyle
+      this.element.style.setProperty('--vis-label-color', style.getPropertyValue('--vis-label-color'), style.getPropertyPriority('--vis-label-color'))
+    }
     this._customColor = undefined
   }
 
@@ -721,8 +727,8 @@ export class VisLabel {
   private _writeOwnStyles (): void {
     const { style } = this.element
     style.cssText = this._customStyle ?? ''
-    if (this._customColor) style.color = this._customColor
-    if (this._customOpacity) style.opacity = String(this._customOpacity)
+    if (this._customColor) style.setProperty('--vis-label-color', this._customColor)
+    if (this._customOpacity !== undefined) style.opacity = String(this._customOpacity)
     if (this._customPointerEvents) style.pointerEvents = this._customPointerEvents
   }
 

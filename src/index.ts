@@ -79,10 +79,11 @@ export class LabelRenderer {
         if (path !== undefined) labelToUpdate.setPath(path)
         else labelToUpdate.resetPath()
         labelToUpdate.setPosition(x, y)
-        if (style !== undefined) labelToUpdate.setStyle(style)
+        labelToUpdate.setStyle(style ?? '')
         if (weight !== undefined) labelToUpdate.setWeight(weight)
 
-        if (color !== undefined) labelToUpdate.setColor(color)
+        if (color !== undefined) labelToUpdate.setDefaultColor(color)
+        else labelToUpdate.resetDefaultColor()
 
         /**
          * We need to check if the font size and padding are specified in the Options,

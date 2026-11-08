@@ -35,6 +35,7 @@ export interface LabelOptions {
   y: number;
   weight?: number;
   fontSize?: number;
+  /** Default text color, applied through the `--vis-label-color` CSS variable, so a `color` from `className` or `style` overrides it. */
   color?: string;
   opacity?: number;
   shouldBeShown?: boolean;
