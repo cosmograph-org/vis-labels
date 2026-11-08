@@ -61,7 +61,7 @@ export class LabelRenderer {
       const exists = this._visLabels.get(label.id)
       if (!exists) {
         this._labelOrderIsStale = true
-        const cssLabel = new VisLabel(this._container, label.text, this._dontInjectStyles, this._dangerousHtml)
+        const cssLabel = new VisLabel(this._container, label.text, this._dontInjectStyles, this._dangerousHtml, true)
         this._visLabels.set(label.id, cssLabel)
         this._elementToId.set(cssLabel.element, label.id)
       }
