@@ -51,7 +51,7 @@ export class VisLabel {
   private _maxWidthRule: string | undefined = undefined
 
   private _customPointerEvents: LabelRendererOptions['pointerEvents'] | undefined
-  private _customStyle: string | undefined
+  private _customStyle = ''
   private _customClassName: string | undefined
   private _rotation = 0
   private _placement: LabelPlacement = 'above'
@@ -67,8 +67,9 @@ export class VisLabel {
    * @param text - Initial label content (plain text or, if dangerousHtml is true, HTML).
    * @param dontInjectStyles - When true, global styles are not injected.
    * @param dangerousHtml - When true, text is set via innerHTML (XSS risk). Only use with trusted/sanitized content.
+   * @param deferSizeOptions - When true, the renderer applies font size and padding after construction.
    */
-  public constructor (container: HTMLDivElement, text?: string | number, dontInjectStyles?: boolean, dangerousHtml?: boolean) {
+  public constructor (container: HTMLDivElement, text?: string | number, dontInjectStyles?: boolean, dangerousHtml?: boolean, deferSizeOptions = false) {
     if (!dontInjectStyles && !globalVisLabelStyles) globalVisLabelStyles = injectStyles(labelStyles)
     this._container = container
     this._updateClasses()
@@ -79,8 +80,10 @@ export class VisLabel {
         this.setText(text)
       }
     }
-    this.resetFontSize()
-    this.resetPadding()
+    if (!deferSizeOptions) {
+      this.resetFontSize()
+      this.resetPadding()
+    }
   }
 
   /**
