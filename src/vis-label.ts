@@ -140,7 +140,7 @@ export class VisLabel {
   /**
    * Sets the CSS style of the element.
    * If an opacity or pointer-events is specified using the `setOpacity` or `setPointerEvents` method,
-   * it takes priority over all custom styles. A `color` given here overrides the one from `setColor`.
+   * it takes priority over all custom styles. A `color` given here overrides the one from `setDefaultColor`.
    * The `transform` style will not apply, as it is used in the draw method to update the label position.
    * @param style - The style to be set.
    */
@@ -226,11 +226,11 @@ export class VisLabel {
   }
 
   /**
-   * Sets the color of the element through the `--vis-label-color` CSS variable,
+   * Sets the default text color through the `--vis-label-color` CSS variable,
    * so a `color` given through `setClassName` or `setStyle` overrides it.
    * @param color - The color to set
    */
-  public setColor (color: string): void {
+  public setDefaultColor (color: string): void {
     if (this._customColor !== color) {
       this.element.style.setProperty('--vis-label-color', color)
       this._customColor = color
@@ -238,9 +238,9 @@ export class VisLabel {
   }
 
   /**
-   * Resets the color of the element.
+   * Clears the default text color, restoring any color variable supplied through `setStyle`.
    */
-  public resetColor (): void {
+  public resetDefaultColor (): void {
     if (this._customColor === undefined) return
     this.element.style.removeProperty('--vis-label-color')
     if (this._customStyle) {

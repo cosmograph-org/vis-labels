@@ -73,6 +73,8 @@ label.setVisibility(true)
 label.draw()
 ```
 
+For individual labels, `setDefaultColor(color)` supplies a default text color that CSS can override; `resetDefaultColor()` clears that default. These replace `setColor()` and `resetColor()`.
+
 ## React Usage
 
 Use the React wrapper from the `react` subpath:
